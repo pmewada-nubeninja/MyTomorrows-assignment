@@ -1,0 +1,38 @@
+# Example Terraform variables file
+# Copy this file to terraform.tfvars and customize as needed
+
+# Kubernetes Configuration
+kubeconfig_path = "~/.kube/config"
+kube_context    = "docker-desktop"
+
+# Application Configuration
+namespace    = "my-tomorrows-app"
+release_name = "my-tomorrows-app"
+chart_path   = "../myTomorrows-app"
+
+# Application Settings
+app_replicas           = 1
+app_image_repository   = "mytms"
+app_image_tag         = "1.0"
+app_image_pullpolicy  = "Never"  # Use "Never" for local images, "IfNotPresent" or "Always" for remote
+
+# Service Configuration
+service_type      = "NodePort"
+service_port      = 8080
+service_node_port = 30090
+
+# Ingress Configuration (optional)
+ingress_enabled = false
+ingress_host    = "my-tomorrows.local"
+
+# Application Secrets (leave empty to auto-generate secure random values)
+# secret_key  = ""           # Leave empty for auto-generation
+# db_password = ""           # Leave empty for auto-generation
+# OR provide your own values:
+# secret_key  = "your-secret-key-here"
+# db_password = "your-secure-password-here"
+
+# Application Configuration
+api_base_url    = "https://api.example.com"
+log_level       = "INFO"
+max_connections = "100"
