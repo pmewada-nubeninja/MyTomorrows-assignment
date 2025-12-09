@@ -1,0 +1,131 @@
+# Development Environment Values
+# Override default values for development environment
+
+global:
+  environment: "development"
+  registry: "docker.io"
+  imageTag: "latest"
+  namespace: "my-app-dev"
+
+# Namespace configuration for dev
+namespace:
+  create: false  # Namespace created by --create-namespace flag
+  name: "my-app-dev"
+
+application:
+  name: "my-tomorrows-app"
+  version: "1.0.0-dev"
+
+# Lower resource requirements for dev
+replicaCount: 1
+
+image:
+  repository: "cloudandparth/my-demo-app"
+  pullPolicy: "Always"  # Always pull latest for dev
+  tag: "1.0"
+
+# Service configuration for dev
+service:
+  type: NodePort
+  port: 80
+  targetPort: 5000
+  nodePort: 30080
+
+# Application configuration
+app:
+  containerPort: 5000
+
+# Ingress configuration for dev (disabled for NodePort)
+ingress:
+  enabled: false
+
+# Resource limits for dev (lower than prod)
+resources:
+  limits:
+    cpu: 200m
+    memory: 256Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+# Health checks for dev
+livenessProbe:
+  httpGet:
+    path: /health
+    port: 5000
+  initialDelaySeconds: 10
+  periodSeconds: 10
+
+readinessProbe:
+  httpGet:
+    path: /health
+    port: 5000
+  initialDelaySeconds: 5
+  periodSeconds: 5
+
+startupProbe:
+  httpGet:
+    path: /health
+    port: 5000
+  initialDelaySeconds: 5
+  periodSeconds: 5
+  failureThreshold: 10
+
+# Development-specific environment variables
+env:
+  - name: ENVIRONMENT
+    value: "development"
+  - name: LOG_LEVEL
+    value: "DEBUG"
+  - name: DEBUG
+    value: "true"
+
+# Autoscaling disabled for dev
+autoscaling:
+  enabled: false
+
+# Security context for dev
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  fsGroup: 10001
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  capabilities:
+    drop:
+    - ALL
+
+# RBAC for development
+rbac:
+  create: true
+  rules:
+    - apiGroups: [""]
+      resources: ["pods"]
+      verbs: ["get", "list"]
+
+# Network policy for development (more permissive)
+networkPolicy:
+  enabled: true
+  policyTypes:
+    - Ingress
+  ingress:
+    - from: []
+      ports:
+        - protocol: TCP
+          port: 5000
+
+# Pod Security Standards for development
+podSecurityStandards:
+  enforce: "baseline"
+  audit: "restricted"
+  warn: "restricted"
+
+# Pod Disruption Budget disabled for dev
+podDisruptionBudget:
+  enabled: false

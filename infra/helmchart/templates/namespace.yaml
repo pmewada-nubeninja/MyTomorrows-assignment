@@ -4,5 +4,14 @@ kind: Namespace
 metadata:
   name: {{ .Values.namespace.name }}
   labels:
-    {{- include "my-tomorrows-app.labels" . | nindent 4 }}
+    {{- include "app-umbrella-chart.labels" . | nindent 4 }}
+    {{- if .Values.podSecurityStandards }}
+    # Pod Security Standards labels
+    pod-security.kubernetes.io/enforce: {{ .Values.podSecurityStandards.enforce | quote }}
+    pod-security.kubernetes.io/audit: {{ .Values.podSecurityStandards.audit | quote }}
+    pod-security.kubernetes.io/warn: {{ .Values.podSecurityStandards.warn | quote }}
+    {{- end }}
+    # Additional security labels
+    security.kubernetes.io/network-policy-enabled: "true"
+    security.kubernetes.io/rbac-enabled: "true"
 {{- end }}

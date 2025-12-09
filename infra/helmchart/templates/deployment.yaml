@@ -1,16 +1,16 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "my-tomorrows-app.fullname" . }}
+  name: {{ include "app-umbrella-chart.fullname" . }}
   labels:
-    {{- include "my-tomorrows-app.labels" . | nindent 4 }}
+    {{- include "app-umbrella-chart.labels" . | nindent 4 }}
 spec:
   {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}
   {{- end }}
   selector:
     matchLabels:
-      {{- include "my-tomorrows-app.selectorLabels" . | nindent 6 }}
+      {{- include "app-umbrella-chart.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       {{- with .Values.podAnnotations }}
@@ -18,7 +18,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       labels:
-        {{- include "my-tomorrows-app.labels" . | nindent 8 }}
+        {{- include "app-umbrella-chart.labels" . | nindent 8 }}
         {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -27,7 +27,7 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      serviceAccountName: {{ include "my-tomorrows-app.serviceAccountName" . }}
+      serviceAccountName: {{ include "app-umbrella-chart.serviceAccountName" . }}
       {{- with .Values.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
@@ -48,27 +48,27 @@ spec:
             - name: SECRET_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "my-tomorrows-app.fullname" . }}-secrets
+                  name: {{ include "app-umbrella-chart.fullname" . }}-secrets
                   key: SECRET_KEY
             - name: DB_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "my-tomorrows-app.fullname" . }}-secrets
+                  name: {{ include "app-umbrella-chart.fullname" . }}-secrets
                   key: DB_PASSWORD
             - name: API_BASE_URL
               valueFrom:
                 configMapKeyRef:
-                  name: {{ include "my-tomorrows-app.fullname" . }}-config
+                  name: {{ include "app-umbrella-chart.fullname" . }}-config
                   key: API_BASE_URL
             - name: LOG_LEVEL
               valueFrom:
                 configMapKeyRef:
-                  name: {{ include "my-tomorrows-app.fullname" . }}-config
+                  name: {{ include "app-umbrella-chart.fullname" . }}-config
                   key: LOG_LEVEL
             - name: MAX_CONNECTIONS
               valueFrom:
                 configMapKeyRef:
-                  name: {{ include "my-tomorrows-app.fullname" . }}-config
+                  name: {{ include "app-umbrella-chart.fullname" . }}-config
                   key: MAX_CONNECTIONS
           {{- with .Values.livenessProbe }}
           livenessProbe:
@@ -78,14 +78,37 @@ spec:
           readinessProbe:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          {{- with .Values.startupProbe }}
+          startupProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}          
           {{- with .Values.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          # Volume mounts for read-only root filesystem
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: var-log
+              mountPath: /var/log
+            - name: run
+              mountPath: /var/run
           {{- with .Values.volumeMounts }}
           volumeMounts:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+      # Volumes for security (required for read-only root filesystem)
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 100Mi
+        - name: var-log
+          emptyDir:
+            sizeLimit: 100Mi
+        - name: run
+          emptyDir:
+            sizeLimit: 100Mi
       {{- with .Values.volumes }}
       volumes:
         {{- toYaml . | nindent 8 }}

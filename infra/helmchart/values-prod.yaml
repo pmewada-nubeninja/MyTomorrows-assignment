@@ -1,0 +1,188 @@
+# Production Environment Values
+# Override default values for production environment
+
+global:
+  environment: "production"
+  registry: "docker.io"
+  imageTag: "latest"
+  namespace: "my-app-prod"
+
+application:
+  name: "my-tomorrows-app"
+  version: "1.0.0"
+
+# High availability for production
+replicaCount: 3
+
+image:
+  repository: "cloudandparth/my-demo-app"
+  pullPolicy: "IfNotPresent"
+  tag: "latest"  # Use specific version tags in prod
+
+# Service configuration for production
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 9090
+
+# Ingress configuration for production
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+  hosts:
+    - host: my-app-prod.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: my-app-prod-tls
+      hosts:
+        - my-app-prod.local
+
+# Higher resource limits for production
+resources:
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+  requests:
+    cpu: 500m
+    memory: 512Mi
+
+# Strict health checks for production
+livenessProbe:
+  httpGet:
+    path: /health
+    port: 9090
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /health
+    port: 9090
+  initialDelaySeconds: 15
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+startupProbe:
+  httpGet:
+    path: /health
+    port: 9090
+  initialDelaySeconds: 20
+  periodSeconds: 10
+  failureThreshold: 30
+
+# Production-specific environment variables
+env:
+  - name: ENVIRONMENT
+    value: "production"
+  - name: LOG_LEVEL
+    value: "ERROR"
+  - name: DEBUG
+    value: "false"
+  - name: METRICS_ENABLED
+    value: "true"
+
+# Aggressive autoscaling for production
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 60
+  targetMemoryUtilizationPercentage: 70
+
+# Strict security context for production
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  fsGroup: 10001
+  fsGroupChangePolicy: "OnRootMismatch"
+  supplementalGroups: []
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  capabilities:
+    drop:
+    - ALL
+
+# RBAC for production (minimal permissions)
+rbac:
+  create: true
+  rules:
+    - apiGroups: [""]
+      resources: ["pods"]
+      verbs: ["get"]
+    - apiGroups: [""]
+      resources: ["configmaps"]
+      verbs: ["get"]
+
+# Strict network policies for production
+networkPolicy:
+  enabled: true
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: ingress-nginx
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 9090
+  egress:
+    # DNS resolution only
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+    # HTTPS for external APIs only
+    - to: []
+      ports:
+        - protocol: TCP
+          port: 443
+
+# Pod Security Standards for production
+podSecurityStandards:
+  enforce: "restricted"
+  audit: "restricted"
+  warn: "restricted"
+
+# Pod disruption budget for production
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 2
+
+# Monitoring configuration for production
+monitoring:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    namespace: "monitoring"
+    interval: "30s"
+    path: "/metrics"
+
+# Backup configuration for production
+backup:
+  enabled: true
+  schedule: "0 2 * * *"  # Daily at 2 AM
+  retention: "30d"
