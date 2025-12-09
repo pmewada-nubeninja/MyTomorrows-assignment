@@ -18,24 +18,40 @@ output "release_version" {
   value       = helm_release.my_tomorrows_app.version
 }
 
-output "service_type" {
-  description = "The type of the Kubernetes service"
-  value       = var.service_type
+output "environment" {
+  description = "The environment this deployment is for"
+  value       = var.environment
 }
 
-output "service_port" {
-  description = "The port of the Kubernetes service"
-  value       = var.service_port
+output "chart_path" {
+  description = "The path to the Helm chart used"
+  value       = var.chart_path
 }
 
-output "service_node_port" {
-  description = "The NodePort of the Kubernetes service (if applicable)"
-  value       = var.service_type == "NodePort" ? var.service_node_port : null
+output "values_file" {
+  description = "The values file used for this environment"
+  value       = "values-${var.environment}.yaml"
 }
 
-output "application_url" {
-  description = "The URL to access the application"
-  value       = var.service_type == "NodePort" ? "http://localhost:${var.service_node_port}" : var.ingress_enabled ? "http://${var.ingress_host}" : "Use 'kubectl port-forward' to access the application"
+output "access_instructions" {
+  description = "Instructions to access the application"
+  value = var.environment == "dev" ? {
+    method   = "NodePort"
+    url      = "http://localhost:30080"
+    commands = [
+      "curl http://localhost:30080/health",
+      "curl http://localhost:30080/",
+      "curl http://localhost:30080/config"
+    ]
+  } : {
+    method   = "kubectl port-forward"
+    url      = "http://localhost:8080 (after port-forward)"
+    commands = [
+      "kubectl port-forward svc/my-tomorrows-app 8080:80 -n ${kubernetes_namespace.app_namespace.metadata[0].name}",
+      "curl http://localhost:8080/health",
+      "curl http://localhost:8080/"
+    ]
+  }
 }
 
 output "secret_generation_info" {
