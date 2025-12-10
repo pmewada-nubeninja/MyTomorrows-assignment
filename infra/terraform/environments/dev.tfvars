@@ -27,6 +27,7 @@ applications = [
   {
     name               = "my-tomorrows-api"      # Must match name in values-dev.yaml
     enabled            = true                    # Ensure it's enabled
+    registry           = "docker.io"            # Override to specific registry
     image_repository   = "cloudandparth/my-demo-app"
     image_tag          = "1.0"                   # Override to newer version
     replicas           = 1                       # Scale up for testing

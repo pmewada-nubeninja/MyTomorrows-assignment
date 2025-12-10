@@ -54,46 +54,30 @@ output "access_instructions" {
   }
 }
 
-output "secret_generation_info" {
-  description = "Information about secret generation (non-sensitive)"
-  value = {
-    secret_key_auto_generated  = length(random_password.secret_key) > 0
-    db_password_auto_generated = length(random_password.db_password) > 0
-    secret_key_source          = length(random_password.secret_key) > 0 ? "auto-generated" : "user-provided"
-    db_password_source         = length(random_password.db_password) > 0 ? "auto-generated" : "user-provided"
-  }
-}
+
 
 # ==========================================
 # MULTI-APPLICATION DEPLOYMENT INFO
 # ==========================================
 
 output "deployment_mode" {
-  description = "Whether using single-app (legacy) or multi-app mode"
-  value       = length(var.applications) > 0 ? "multi-app" : "single-app-legacy"
+  description = "Deployment mode - always multi-app"
+  value       = "multi-app"
 }
 
 output "managed_applications" {
   description = "List of applications managed by Terraform"
-  value = length(var.applications) > 0 ? [
+  value = [
     for idx, app in var.applications : {
       index        = idx
       name         = app.name
       enabled      = app.enabled
       image        = app.image_repository != null ? "${app.image_repository}:${app.image_tag}" : "using-helm-default"
+      registry     = app.registry != null ? app.registry : (var.global_image_overrides.registry != null ? var.global_image_overrides.registry : "using-helm-default")
+      tag_prefix   = app.tag_prefix != null ? app.tag_prefix : (var.global_image_overrides.tag_prefix != null ? var.global_image_overrides.tag_prefix : "using-helm-default")
       replicas     = app.replicas
       env_count    = length(app.env_variables)
       secret_count = length(app.secrets)
-    }
-    ] : [
-    {
-      index        = 0
-      name         = "legacy-first-app"
-      enabled      = true
-      image        = var.app_image_repository != "" ? "${var.app_image_repository}:${var.app_image_tag}" : "using-helm-default"
-      replicas     = var.app_replicas
-      env_count    = length(var.app_env_variables)
-      secret_count = 2 # SECRET_KEY and DB_PASSWORD
     }
   ]
 }
@@ -101,18 +85,10 @@ output "managed_applications" {
 output "terraform_overrides_summary" {
   description = "Summary of Terraform overrides applied"
   value = {
-    total_applications     = length(var.applications) > 0 ? length(var.applications) : 1
+    total_applications     = length(var.applications)
     managing_app_state     = var.manage_application_state
     global_registry        = var.global_image_overrides.registry
-    total_env_overrides    = length(var.applications) > 0 ? sum([for app in var.applications : length(app.env_variables)]) : length(var.app_env_variables)
-    total_secret_overrides = length(var.applications) > 0 ? sum([for app in var.applications : length(app.secrets)]) : 2
-    legacy_overrides_count = length(var.applications) == 0 ? (
-      (var.app_image_repository != "" ? 1 : 0) +
-      (var.app_image_tag != "" ? 1 : 0) +
-      (var.app_replicas != null ? 1 : 0) +
-      (var.api_base_url != "" ? 1 : 0) +
-      (var.log_level != "" ? 1 : 0) +
-      (var.max_connections != "" ? 1 : 0)
-    ) : 0
+    total_env_overrides    = sum([for app in var.applications : length(app.env_variables)])
+    total_secret_overrides = sum([for app in var.applications : length(app.secrets)])
   }
 }

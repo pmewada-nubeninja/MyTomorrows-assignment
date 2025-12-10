@@ -66,6 +66,8 @@ variable "applications" {
     name             = string                    # Application name (must match Helm values)
     image_repository = optional(string)          # Override image repository
     image_tag        = optional(string)          # Override image tag
+    registry         = optional(string)          # Override registry for this app (highest precedence)
+    tag_prefix       = optional(string)          # Override tag prefix for this app (highest precedence)
     replicas         = optional(number)          # Override replica count
     enabled          = optional(bool)            # Enable/disable application
     env_variables    = optional(map(string), {}) # Additional env vars
@@ -74,65 +76,3 @@ variable "applications" {
   default = []
 }
 
-# Legacy single-app variables (kept for backward compatibility)
-variable "app_image_repository" {
-  description = "Docker image repository for the first application (legacy)"
-  type        = string
-  default     = "" # Use Helm values file default if not specified
-}
-
-variable "app_image_tag" {
-  description = "Docker image tag for the first application (legacy)"
-  type        = string
-  default     = "" # Use Helm values file default if not specified
-}
-
-variable "app_replicas" {
-  description = "Number of replicas for first application (legacy)"
-  type        = number
-  default     = null # Use Helm values file default if not specified
-}
-
-# Environment-specific overrides (optional)
-variable "app_env_variables" {
-  description = "Additional environment variables for the application"
-  type        = map(string)
-  default     = {} # Use Helm values file default if not specified
-}
-
-variable "secret_key" {
-  description = "Application secret key (leave empty to auto-generate)"
-  type        = string
-  sensitive   = true
-  default     = ""
-}
-
-variable "db_password" {
-  description = "Database password (leave empty to auto-generate)"
-  type        = string
-  sensitive   = true
-  default     = ""
-}
-
-variable "api_base_url" {
-  description = "API base URL (optional override)"
-  type        = string
-  default     = ""
-}
-
-variable "log_level" {
-  description = "Application log level (optional override)"
-  type        = string
-  default     = ""
-
-  validation {
-    condition     = var.log_level == "" || contains(["DEBUG", "INFO", "WARNING", "ERROR"], var.log_level)
-    error_message = "Log level must be one of: DEBUG, INFO, WARNING, ERROR."
-  }
-}
-
-variable "max_connections" {
-  description = "Maximum database connections (optional override)"
-  type        = string
-  default     = ""
-}

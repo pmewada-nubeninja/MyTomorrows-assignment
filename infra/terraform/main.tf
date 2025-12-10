@@ -1,15 +1,5 @@
-# Generate random passwords when variables are empty
-resource "random_password" "secret_key" {
-  length  = 32
-  special = true
-  count   = var.secret_key == "" ? 1 : 0
-}
-
-resource "random_password" "db_password" {
-  length  = 24
-  special = true
-  count   = var.db_password == "" ? 1 : 0
-}
+# Multi-Application Kubernetes Deployment
+# This configuration supports deploying multiple applications using an umbrella Helm chart
 
 # Create namespace
 resource "kubernetes_namespace" "app_namespace" {
@@ -105,79 +95,25 @@ resource "helm_release" "my_tomorrows_app" {
     }
   }
 
-  # ========================================
-  # LEGACY SINGLE-APP SUPPORT (Backward Compatibility)
-  # ========================================
-
-  # Override sensitive values for first application (legacy support)
-  set_sensitive {
-    name  = "applications[0].secrets.SECRET_KEY"
-    value = var.secret_key != "" ? var.secret_key : (length(random_password.secret_key) > 0 ? random_password.secret_key[0].result : "")
-  }
-
-  set_sensitive {
-    name  = "applications[0].secrets.DB_PASSWORD"
-    value = var.db_password != "" ? var.db_password : (length(random_password.db_password) > 0 ? random_password.db_password[0].result : "")
-  }
-
-  # Legacy image configuration for first application
+  # Set application-level registry overrides (highest precedence)
   dynamic "set" {
-    for_each = var.app_image_repository != "" && length(var.applications) == 0 ? [1] : []
+    for_each = { for idx, app in var.applications : idx => app if app.registry != null }
     content {
-      name  = "applications[0].image.repository"
-      value = var.app_image_repository
+      name  = "applications[${set.key}].image.registry"
+      value = set.value.registry
     }
   }
 
+  # Set application-level tag prefix overrides (highest precedence)
   dynamic "set" {
-    for_each = var.app_image_tag != "" && length(var.applications) == 0 ? [1] : []
+    for_each = { for idx, app in var.applications : idx => app if app.tag_prefix != null }
     content {
-      name  = "applications[0].image.tag"
-      value = var.app_image_tag
+      name  = "applications[${set.key}].image.tagPrefix"
+      value = set.value.tag_prefix
     }
   }
 
-  dynamic "set" {
-    for_each = var.app_replicas != null && length(var.applications) == 0 ? [1] : []
-    content {
-      name  = "applications[0].replicaCount"
-      value = var.app_replicas
-    }
-  }
 
-  # Legacy environment-specific configuration overrides
-  dynamic "set" {
-    for_each = var.api_base_url != "" && length(var.applications) == 0 ? [1] : []
-    content {
-      name  = "applications[0].config.API_BASE_URL"
-      value = var.api_base_url
-    }
-  }
-
-  dynamic "set" {
-    for_each = var.log_level != "" && length(var.applications) == 0 ? [1] : []
-    content {
-      name  = "applications[0].config.LOG_LEVEL"
-      value = var.log_level
-    }
-  }
-
-  dynamic "set" {
-    for_each = var.max_connections != "" && length(var.applications) == 0 ? [1] : []
-    content {
-      name  = "applications[0].config.MAX_CONNECTIONS"
-      value = var.max_connections
-    }
-  }
-
-  # Legacy additional environment variables for first application
-  dynamic "set" {
-    for_each = length(var.applications) == 0 ? var.app_env_variables : {}
-    content {
-      name  = "applications[0].config.${set.key}"
-      value = set.value
-    }
-  }
 
   # ========================================
   # GLOBAL CONFIGURATION OVERRIDES
