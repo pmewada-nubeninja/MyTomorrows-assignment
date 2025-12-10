@@ -1,9 +1,16 @@
+{{- range $app := .Values.applications }}
+{{- if $app.enabled }}
+---
 apiVersion: v1
 kind: Pod
 metadata:
-  name: "{{ include "app-umbrella-chart.fullname" . }}-test-connection"
+  name: "{{ $app.name }}-test-connection"
+  namespace: {{ $.Values.namespace.name }}
   labels:
-    {{- include "app-umbrella-chart.labels" . | nindent 4 }}
+    app.kubernetes.io/name: {{ $app.name }}
+    app.kubernetes.io/instance: {{ $.Release.Name }}
+    app.kubernetes.io/version: {{ $.Chart.AppVersion | quote }}
+    app.kubernetes.io/managed-by: {{ $.Release.Service }}
   annotations:
     "helm.sh/hook": test
 spec:
@@ -11,5 +18,7 @@ spec:
     - name: wget
       image: busybox
       command: ['wget']
-      args: ['{{ include "app-umbrella-chart.fullname" . }}:{{ .Values.service.port }}']
+      args: ['{{ $app.name }}-service:{{ $app.service.port | default $.Values.defaultApp.service.port }}']
   restartPolicy: Never
+{{- end }}
+{{- end }}

@@ -13,22 +13,141 @@ global:
 namespace:
   create: true
   name: "default"
-  
-# Application-specific configuration
-application:
-  name: "default-app"
-  version: "1.0.0"
-  
-# This will set the replicaset count - can be overridden per environment
-replicaCount: 1  # Default for dev, override in prod values
 
-# This sets the container image configuration
-image:
-  repository: "{{ .Values.global.registry }}/{{ .Values.application.name }}"
-  # This sets the pull policy for images.
-  pullPolicy: "IfNotPresent"  # More appropriate for reusable chart
-  # Overrides the image tag whose default is the global imageTag.
-  tag: "{{ .Values.global.imageTag }}"
+# Multiple applications configuration
+# This allows deploying multiple apps with the same umbrella chart
+applications:
+  # Application 1: API Service
+  - name: "my-tomorrows-api"
+    enabled: true
+    replicaCount: 2
+    image:
+      repository: "cloudandparth/my-demo-app"
+      tag: "1.0"
+      pullPolicy: "IfNotPresent"
+    service:
+      type: NodePort
+      port: 80
+      targetPort: 5000
+      nodePort: 30080
+    app:
+      containerPort: 5000
+      secrets:
+        SECRET_KEY: "YXBpX3NlY3JldF9rZXk="
+        DB_PASSWORD: "YXBpX2RiX3Bhc3N3b3Jk"
+      config:
+        API_BASE_URL: "https://api.example.com"
+        LOG_LEVEL: "INFO"
+        SERVICE_NAME: "api-service"
+    ingress:
+      enabled: false
+      host: "api.local"
+      path: "/api"
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 250m
+        memory: 256Mi
+
+  # Application 2: Web Frontend
+  - name: "my-tomorrows-web"
+    enabled: true
+    replicaCount: 1
+    image:
+      repository: "nginx"
+      tag: "alpine"
+      pullPolicy: "IfNotPresent"
+    service:
+      type: NodePort
+      port: 80
+      targetPort: 80
+      nodePort: 30081
+    app:
+      containerPort: 80
+      secrets:
+        SESSION_SECRET: "d2ViX3Nlc3Npb25fc2VjcmV0"
+      config:
+        API_ENDPOINT: "http://my-tomorrows-api.default.svc.cluster.local"
+        ENV: "development"
+        SERVICE_NAME: "web-frontend"
+    ingress:
+      enabled: false
+      host: "web.local"
+      path: "/"
+    resources:
+      limits:
+        cpu: 200m
+        memory: 256Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+
+  # Application 3: Background Worker
+  - name: "my-tomorrows-worker"
+    enabled: false  # Disabled by default
+    replicaCount: 1
+    image:
+      repository: "cloudandparth/my-demo-app"
+      tag: "worker-1.0"
+      pullPolicy: "IfNotPresent"
+    service:
+      type: ClusterIP
+      port: 80
+      targetPort: 8000
+    app:
+      containerPort: 8000
+      secrets:
+        WORKER_SECRET: "d29ya2VyX3NlY3JldA=="
+        QUEUE_PASSWORD: "cXVldWVfcGFzc3dvcmQ="
+      config:
+        QUEUE_URL: "redis://redis.default.svc.cluster.local:6379"
+        LOG_LEVEL: "DEBUG"
+        SERVICE_NAME: "background-worker"
+    ingress:
+      enabled: false
+    resources:
+      limits:
+        cpu: 300m
+        memory: 384Mi
+      requests:
+        cpu: 150m
+        memory: 192Mi
+
+# Default application configuration template (used as fallback)
+defaultApp:
+
+# Default application configuration template (used as fallback)
+defaultApp:
+  replicaCount: 1
+  image:
+    repository: "nginx"
+    pullPolicy: "IfNotPresent"
+    tag: "latest"
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 80
+  app:
+    containerPort: 80
+    secrets: {}
+    config: {}
+  ingress:
+    enabled: false
+    className: "nginx"
+    annotations:
+      nginx.ingress.kubernetes.io/rewrite-target: /
+    host: "app.local"
+    path: "/"
+    pathType: "Prefix"
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
 
 # This is for the secrets for pulling an image from a private repository more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
 imagePullSecrets: []
@@ -134,69 +253,27 @@ podDisruptionBudget:
   minAvailable: 1
   # maxUnavailable: 1
 
-# This is for setting up a service more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/
-service:
-  # This sets the service type more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/#publishing-services-service-types
-  type: NodePort
-  # This sets the ports more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/#field-spec-ports
-  port: 8080
-  targetPort: 5000
-  # NodePort to expose the service on (30000-32767 range)
-  nodePort: 30000
-
-# This block is for setting up the ingress for more information can be found here: https://kubernetes.io/docs/concepts/services-networking/ingress/
-ingress:
-  enabled: false
-  className: "nginx"
-  annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /
-  hosts:
-    - host: default-app.local
-      paths:
-        - path: /
-          pathType: Prefix
-  tls: []
-
-resources:
-  # We usually recommend not to specify default resources and to leave this as a conscious
-  # choice for the user. This also increases chances charts run on environments with little
-  # resources, such as Minikube. If you do want to specify resources, uncomment the following
-  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
-  limits:
-    cpu: 500m
-    memory: 512Mi
-  requests:
-    cpu: 250m
-    memory: 256Mi
-
-# This is to setup the liveness and readiness probes more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
-livenessProbe:
-  httpGet:
-    path: /
-    port: 5000
-  initialDelaySeconds: 30
-  periodSeconds: 10
-readinessProbe:
-  httpGet:
-    path: /config
-    port: 5000
-  initialDelaySeconds: 5
-  periodSeconds: 5
-startupProbe:
-  httpGet:
-    path: /health
-    port: 5000
-  initialDelaySeconds: 10
-  periodSeconds: 10
-  failureThreshold: 30  
-
-# This section is for setting up autoscaling more information can be found here: https://kubernetes.io/docs/concepts/workloads/autoscaling/
-autoscaling:
-  enabled: false
-  minReplicas: 1
-  maxReplicas: 100
-  targetCPUUtilizationPercentage: 80
-  # targetMemoryUtilizationPercentage: 80
+# Health probes configuration (applied to all apps by default)
+defaultProbes:
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: http
+    initialDelaySeconds: 30
+    periodSeconds: 10
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: http
+    initialDelaySeconds: 5
+    periodSeconds: 5
+  startupProbe:
+    httpGet:
+      path: /health
+      port: http
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    failureThreshold: 30
 
 # Additional volumes on the output Deployment definition.
 volumes: []
@@ -216,24 +293,3 @@ nodeSelector: {}
 tolerations: []
 
 affinity: {}
-
-# Application specific configuration
-app:
-  # Container port configuration
-  containerPort: 5000
-  
-  # Environment variables from secrets
-  secrets:
-    SECRET_KEY: "bXlfc2VjcmV0X2tleV9oZXJl"  # my_secret_key_here
-    DB_PASSWORD: "bXlfc3VwZXJfc2VjdXJlX3Bhc3N3b3Jk"  # my_super_secure_password
-  
-  # Environment variables from configmap
-  config:
-    API_BASE_URL: "https://api.example.com"
-    LOG_LEVEL: "INFO"
-    MAX_CONNECTIONS: "100"
-
-# Namespace configuration
-namespace:
-  create: false
-  name: default-app

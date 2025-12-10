@@ -1,88 +1,99 @@
+{{- range $app := .Values.applications }}
+{{- if $app.enabled }}
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "app-umbrella-chart.fullname" . }}
+  name: {{ $app.name }}
+  namespace: {{ $.Values.namespace.name }}
   labels:
-    {{- include "app-umbrella-chart.labels" . | nindent 4 }}
+    app.kubernetes.io/name: {{ $app.name }}
+    app.kubernetes.io/instance: {{ $.Release.Name }}
+    app.kubernetes.io/version: {{ $.Chart.AppVersion | quote }}
+    app.kubernetes.io/managed-by: {{ $.Release.Service }}
 spec:
-  {{- if not .Values.autoscaling.enabled }}
-  replicas: {{ .Values.replicaCount }}
+  {{- if not ($app.autoscaling | default $.Values.defaultApp.autoscaling).enabled }}
+  replicas: {{ $app.replicaCount | default $.Values.defaultApp.replicaCount }}
   {{- end }}
   selector:
     matchLabels:
-      {{- include "app-umbrella-chart.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/name: {{ $app.name }}
+      app.kubernetes.io/instance: {{ $.Release.Name }}
   template:
     metadata:
-      {{- with .Values.podAnnotations }}
+      {{- with $.Values.podAnnotations }}
       annotations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       labels:
-        {{- include "app-umbrella-chart.labels" . | nindent 8 }}
-        {{- with .Values.podLabels }}
+        app.kubernetes.io/name: {{ $app.name }}
+        app.kubernetes.io/instance: {{ $.Release.Name }}
+        {{- with $.Values.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
-      {{- with .Values.imagePullSecrets }}
+      {{- with $.Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      serviceAccountName: {{ include "app-umbrella-chart.serviceAccountName" . }}
-      {{- with .Values.podSecurityContext }}
+      serviceAccountName: {{ include "app-umbrella-chart.serviceAccountName" $ }}
+      {{- with $.Values.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       containers:
-        - name: {{ .Chart.Name }}
-          {{- with .Values.securityContext }}
+        - name: {{ $app.name }}
+          {{- with $.Values.securityContext }}
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          image: "{{ $app.image.repository }}:{{ $app.image.tag | default $.Values.global.imageTag }}"
+          imagePullPolicy: {{ $app.image.pullPolicy | default $.Values.defaultApp.image.pullPolicy }}
           ports:
             - name: http
-              containerPort: {{ .Values.app.containerPort }}
+              containerPort: {{ $app.app.containerPort | default $.Values.defaultApp.app.containerPort }}
               protocol: TCP
           env:
-            - name: SECRET_KEY
+            {{- range $key, $value := $app.app.secrets }}
+            - name: {{ $key }}
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "app-umbrella-chart.fullname" . }}-secrets
-                  key: SECRET_KEY
-            - name: DB_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "app-umbrella-chart.fullname" . }}-secrets
-                  key: DB_PASSWORD
-            - name: API_BASE_URL
+                  name: {{ $app.name }}-secrets
+                  key: {{ $key }}
+            {{- end }}
+            {{- range $key, $value := $app.app.config }}
+            - name: {{ $key }}
               valueFrom:
                 configMapKeyRef:
-                  name: {{ include "app-umbrella-chart.fullname" . }}-config
-                  key: API_BASE_URL
-            - name: LOG_LEVEL
-              valueFrom:
-                configMapKeyRef:
-                  name: {{ include "app-umbrella-chart.fullname" . }}-config
-                  key: LOG_LEVEL
-            - name: MAX_CONNECTIONS
-              valueFrom:
-                configMapKeyRef:
-                  name: {{ include "app-umbrella-chart.fullname" . }}-config
-                  key: MAX_CONNECTIONS
-          {{- with .Values.livenessProbe }}
+                  name: {{ $app.name }}-config
+                  key: {{ $key }}
+            {{- end }}
+          {{- with ($.Values.defaultProbes.livenessProbe) }}
           livenessProbe:
-            {{- toYaml . | nindent 12 }}
+            httpGet:
+              path: {{ .httpGet.path }}
+              port: {{ $app.app.containerPort | default $.Values.defaultApp.app.containerPort }}
+            initialDelaySeconds: {{ .initialDelaySeconds }}
+            periodSeconds: {{ .periodSeconds }}
           {{- end }}
-          {{- with .Values.readinessProbe }}
+          {{- with ($.Values.defaultProbes.readinessProbe) }}
           readinessProbe:
-            {{- toYaml . | nindent 12 }}
+            httpGet:
+              path: {{ .httpGet.path }}
+              port: {{ $app.app.containerPort | default $.Values.defaultApp.app.containerPort }}
+            initialDelaySeconds: {{ .initialDelaySeconds }}
+            periodSeconds: {{ .periodSeconds }}
           {{- end }}
-          {{- with .Values.startupProbe }}
+          {{- with ($.Values.defaultProbes.startupProbe) }}
           startupProbe:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}          
-          {{- with .Values.resources }}
+            httpGet:
+              path: {{ .httpGet.path }}
+              port: {{ $app.app.containerPort | default $.Values.defaultApp.app.containerPort }}
+            initialDelaySeconds: {{ .initialDelaySeconds }}
+            periodSeconds: {{ .periodSeconds }}
+            failureThreshold: {{ .failureThreshold }}
+          {{- end }}
+          {{- with ($app.resources | default $.Values.defaultApp.resources) }}
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
@@ -94,8 +105,7 @@ spec:
               mountPath: /var/log
             - name: run
               mountPath: /var/run
-          {{- with .Values.volumeMounts }}
-          volumeMounts:
+          {{- with $.Values.volumeMounts }}
             {{- toYaml . | nindent 12 }}
           {{- end }}
       # Volumes for security (required for read-only root filesystem)
@@ -109,19 +119,20 @@ spec:
         - name: run
           emptyDir:
             sizeLimit: 100Mi
-      {{- with .Values.volumes }}
-      volumes:
+      {{- with $.Values.volumes }}
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.nodeSelector }}
+      {{- with $.Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.affinity }}
+      {{- with $.Values.affinity }}
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.tolerations }}
+      {{- with $.Values.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+{{- end }}
+{{- end }}

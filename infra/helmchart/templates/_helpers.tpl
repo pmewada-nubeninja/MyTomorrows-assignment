@@ -2,7 +2,7 @@
 Expand the name of the chart.
 */}}
 {{- define "app-umbrella-chart.name" -}}
-{{- default .Values.application.name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
+{{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
@@ -14,7 +14,7 @@ If release name contains chart name it will be used as a full name.
 {{- if .Values.fullnameOverride }}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
 {{- else }}
-{{- $name := default .Values.application.name .Values.nameOverride }}
+{{- $name := default .Chart.Name .Values.nameOverride }}
 {{- if contains $name .Release.Name }}
 {{- .Release.Name | trunc 63 | trimSuffix "-" }}
 {{- else }}
@@ -36,13 +36,12 @@ Common labels with environment support
 {{- define "app-umbrella-chart.labels" -}}
 helm.sh/chart: {{ include "app-umbrella-chart.chart" . }}
 {{ include "app-umbrella-chart.selectorLabels" . }}
-{{- if .Values.application.version }}
-app.kubernetes.io/version: {{ .Values.application.version | quote }}
-{{- end }}
+app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 app.kubernetes.io/environment: {{ .Values.global.environment | quote }}
 {{- end }}
 
+{{/*
 {{/*
 Selector labels
 */}}

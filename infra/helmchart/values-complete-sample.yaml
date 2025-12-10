@@ -1,0 +1,579 @@
+# Complete Sample Values File for Multi-Application Umbrella Chart
+# This file demonstrates ALL configuration options available in this Helm chart
+# Use this as a reference to understand what can be configured
+
+# ===========================
+# 1. GLOBAL CONFIGURATION
+# ===========================
+global:
+  environment: "development"              # Environment name (dev/staging/prod)
+  registry: "docker.io"                   # Default container registry
+  imageTag: "latest"                      # Default image tag for all apps
+  namespace: "my-sample-app"              # Default namespace
+
+# Namespace configuration
+namespace:
+  create: true                            # Create namespace (set false if using existing)
+  name: "my-sample-app"                   # Namespace name
+  labels:                                 # Optional namespace labels
+    environment: "development"
+    team: "platform"
+
+# Image pull secrets for private registries
+imagePullSecrets: []
+# Example for private registry:
+# imagePullSecrets:
+#   - name: regcred
+
+# Chart naming overrides
+nameOverride: ""                          # Override chart name
+fullnameOverride: ""                      # Override full chart name
+
+# Service Account configuration
+serviceAccount:
+  create: true                            # Create service account
+  automount: false                        # Security: disable auto-mounting SA token
+  annotations: {}                         # Annotations for service account
+  name: ""                               # Custom SA name (auto-generated if empty)
+
+# RBAC (Role-Based Access Control)
+rbac:
+  create: true                            # Create RBAC resources
+  rules:                                  # Permissions for the service account
+    - apiGroups: [""]
+      resources: ["pods"]
+      verbs: ["get", "list"]
+    - apiGroups: [""]
+      resources: ["configmaps"]
+      verbs: ["get", "list"]
+
+# Network Policies for security
+networkPolicy:
+  enabled: true                           # Enable network policies
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:                               # Inbound traffic rules
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 8080
+        - protocol: TCP
+          port: 80
+  egress:                                # Outbound traffic rules
+    - to: []                             # DNS resolution
+      ports:
+        - protocol: UDP
+          port: 53
+    - to: []                             # HTTPS/HTTP outbound
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 80
+
+# Pod-level annotations and labels
+podAnnotations:
+  prometheus.io/scrape: "true"           # Example: Prometheus scraping
+  prometheus.io/port: "8080"
+podLabels:
+  version: "v1"                          # Example: Version label
+  tier: "application"
+
+# Security contexts
+podSecurityContext:                      # Pod-level security
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  fsGroup: 10001
+  fsGroupChangePolicy: "OnRootMismatch"
+  supplementalGroups: []
+
+securityContext:                         # Container-level security
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  capabilities:
+    drop: [ALL]
+    add: []
+
+# Pod Security Standards (Kubernetes 1.23+)
+podSecurityStandards:
+  enforce: "restricted"                  # Options: privileged, baseline, restricted
+  audit: "restricted"
+  warn: "restricted"
+
+# Pod Disruption Budget for high availability
+podDisruptionBudget:
+  enabled: true                          # Enable PDB
+  minAvailable: 1                        # Min pods available during disruptions
+  # maxUnavailable: 1                    # Alternative: max pods unavailable
+
+# Default health probes (applied to all apps unless overridden)
+defaultProbes:
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: http
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readinessProbe:
+    httpGet:
+      path: /ready
+      port: http
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+  startupProbe:
+    httpGet:
+      path: /startup
+      port: http
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    failureThreshold: 30
+
+# Additional volumes (applied to all pods)
+volumes:
+  - name: tmp-volume
+    emptyDir:
+      sizeLimit: 1Gi
+  - name: config-volume
+    configMap:
+      name: shared-config
+
+# Additional volume mounts (applied to all containers)
+volumeMounts:
+  - name: tmp-volume
+    mountPath: /tmp
+  - name: config-volume
+    mountPath: /etc/config
+
+# Node selection, tolerations, and affinity
+nodeSelector:
+  kubernetes.io/arch: amd64              # Example: AMD64 nodes only
+
+tolerations:
+  - key: "node-type"                     # Example: Tolerate specific node taints
+    operator: "Equal"
+    value: "compute"
+    effect: "NoSchedule"
+
+affinity:
+  nodeAffinity:                          # Example: Prefer specific nodes
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        preference:
+          matchExpressions:
+            - key: node-type
+              operator: In
+              values: ["compute"]
+
+# ===========================
+# 2. DEFAULT APP CONFIGURATION
+# ===========================
+# These settings apply to all applications unless overridden
+defaultApp:
+  replicaCount: 2                        # Default replica count
+  image:
+    repository: "nginx"                  # Default image
+    pullPolicy: "IfNotPresent"          # Default pull policy
+    tag: "latest"                       # Default tag
+  
+  service:
+    type: ClusterIP                      # Default service type
+    port: 80                            # Default service port
+    targetPort: 8080                    # Default target port
+    
+  app:
+    containerPort: 8080                 # Default container port
+    secrets: {}                         # Default secrets (empty)
+    config: {}                          # Default config (empty)
+    
+  ingress:
+    enabled: false                      # Default: no ingress
+    className: "nginx"                  # Default ingress class
+    annotations:
+      nginx.ingress.kubernetes.io/rewrite-target: /
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    host: "app.local"                   # Default hostname
+    path: "/"                          # Default path
+    pathType: "Prefix"                 # Default path type
+    tls: false                         # Default: no TLS
+    
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 250m
+      memory: 256Mi
+      
+  autoscaling:                          # Default autoscaling (disabled)
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+# ===========================
+# 3. INDIVIDUAL APPLICATIONS
+# ===========================
+applications:
+  # ==================
+  # API Service
+  # ==================
+  - name: "api-service"
+    enabled: true                       # Enable this application
+    replicaCount: 3                    # Override default replica count
+    
+    image:
+      repository: "myregistry/api"
+      tag: "v2.1.0"
+      pullPolicy: "Always"
+      
+    service:
+      type: ClusterIP                   # Behind load balancer
+      port: 80
+      targetPort: 8080
+      # nodePort: 30080               # Only for NodePort type
+      
+    app:
+      containerPort: 8080
+      
+      # Application secrets (base64 encoded)
+      secrets:
+        DB_PASSWORD: "cGFzc3dvcmQxMjM="           # password123
+        API_KEY: "YWJjZGVmZ2hpams="              # abcdefghijk
+        JWT_SECRET: "bXlzdXBlcnNlY3JldGtleQ=="    # mysupersecretkey
+        
+      # Application configuration
+      config:
+        LOG_LEVEL: "INFO"
+        DATABASE_URL: "postgresql://db:5432/myapp"
+        REDIS_URL: "redis://redis:6379"
+        MAX_CONNECTIONS: "100"
+        TIMEOUT: "30s"
+        ENVIRONMENT: "production"
+        
+    # Ingress configuration
+    ingress:
+      enabled: true
+      className: "nginx"
+      annotations:
+        nginx.ingress.kubernetes.io/rate-limit: "100"
+        nginx.ingress.kubernetes.io/ssl-redirect: "true"
+        cert-manager.io/cluster-issuer: "letsencrypt-prod"
+      host: "api.example.com"
+      path: "/api"
+      pathType: "Prefix"
+      tls: true
+      
+    # Resource limits and requests
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+      requests:
+        cpu: 500m
+        memory: 512Mi
+        
+    # Horizontal Pod Autoscaler
+    autoscaling:
+      enabled: true
+      minReplicas: 3
+      maxReplicas: 20
+      targetCPUUtilizationPercentage: 70
+      targetMemoryUtilizationPercentage: 80
+      
+    # Custom health checks (overrides defaults)
+    healthChecks:
+      livenessProbe:
+        httpGet:
+          path: /api/health
+          port: 8080
+        initialDelaySeconds: 45
+        periodSeconds: 30
+      readinessProbe:
+        httpGet:
+          path: /api/ready
+          port: 8080
+        initialDelaySeconds: 10
+        periodSeconds: 10
+      startupProbe:
+        httpGet:
+          path: /api/startup
+          port: 8080
+        initialDelaySeconds: 20
+        periodSeconds: 15
+        failureThreshold: 20
+
+  # ==================
+  # Web Frontend
+  # ==================
+  - name: "web-frontend"
+    enabled: true
+    replicaCount: 2
+    
+    image:
+      repository: "myregistry/frontend"
+      tag: "v1.5.2"
+      pullPolicy: "IfNotPresent"
+      
+    service:
+      type: ClusterIP
+      port: 80
+      targetPort: 3000
+      
+    app:
+      containerPort: 3000
+      
+      secrets:
+        SESSION_SECRET: "c2Vzc2lvbnNlY3JldA=="      # sessionsecret
+        OAUTH_CLIENT_SECRET: "b2F1dGhzZWNyZXQ="     # oauthsecret
+        
+      config:
+        API_URL: "http://api-service:80/api"
+        NODE_ENV: "production"
+        PORT: "3000"
+        LOG_LEVEL: "warn"
+        
+    ingress:
+      enabled: true
+      className: "nginx"
+      annotations:
+        nginx.ingress.kubernetes.io/ssl-redirect: "true"
+        nginx.ingress.kubernetes.io/gzip-types: "text/css,application/javascript,text/plain"
+      host: "app.example.com"
+      path: "/"
+      pathType: "Prefix"
+      tls: true
+      
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 200m
+        memory: 256Mi
+        
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 10
+      targetCPUUtilizationPercentage: 80
+
+  # ==================
+  # Background Worker
+  # ==================
+  - name: "worker-service"
+    enabled: true
+    replicaCount: 2
+    
+    image:
+      repository: "myregistry/worker"
+      tag: "v1.0.3"
+      pullPolicy: "IfNotPresent"
+      
+    service:
+      type: ClusterIP                   # Internal service only
+      port: 8080
+      targetPort: 8080
+      
+    app:
+      containerPort: 8080
+      
+      secrets:
+        WORKER_SECRET: "d29ya2Vyc2VjcmV0"         # workersecret
+        QUEUE_PASSWORD: "cXVldWVwYXNzd29yZA=="    # queuepassword
+        
+      config:
+        QUEUE_URL: "redis://redis:6379"
+        WORKER_THREADS: "4"
+        BATCH_SIZE: "10"
+        LOG_LEVEL: "info"
+        
+    ingress:
+      enabled: false                    # No external access needed
+      
+    resources:
+      limits:
+        cpu: 800m
+        memory: 768Mi
+      requests:
+        cpu: 300m
+        memory: 384Mi
+        
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 8
+      targetCPUUtilizationPercentage: 75
+
+  # ==================
+  # Monitoring Service
+  # ==================
+  - name: "monitoring"
+    enabled: false                      # Disabled by default
+    replicaCount: 1
+    
+    image:
+      repository: "prom/prometheus"
+      tag: "latest"
+      pullPolicy: "IfNotPresent"
+      
+    service:
+      type: ClusterIP
+      port: 9090
+      targetPort: 9090
+      
+    app:
+      containerPort: 9090
+      
+      secrets:
+        ADMIN_PASSWORD: "YWRtaW5wYXNz"            # adminpass
+        
+      config:
+        SCRAPE_INTERVAL: "15s"
+        EVALUATION_INTERVAL: "15s"
+        RETENTION_TIME: "15d"
+        
+    ingress:
+      enabled: true
+      className: "nginx"
+      annotations:
+        nginx.ingress.kubernetes.io/auth-type: basic
+        nginx.ingress.kubernetes.io/auth-secret: monitoring-auth
+      host: "monitoring.example.com"
+      path: "/"
+      pathType: "Prefix"
+      tls: true
+      
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+      requests:
+        cpu: 500m
+        memory: 1Gi
+
+  # ==================
+  # Database Service
+  # ==================
+  - name: "database"
+    enabled: false                      # Enable for database deployment
+    replicaCount: 1                    # Databases typically run single instance
+    
+    image:
+      repository: "postgres"
+      tag: "13-alpine"
+      pullPolicy: "IfNotPresent"
+      
+    service:
+      type: ClusterIP
+      port: 5432
+      targetPort: 5432
+      
+    app:
+      containerPort: 5432
+      
+      secrets:
+        POSTGRES_PASSWORD: "ZGJwYXNzd29yZA=="      # dbpassword
+        POSTGRES_USER: "YXBwdXNlcg=="             # appuser
+        
+      config:
+        POSTGRES_DB: "myappdb"
+        POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+        
+    ingress:
+      enabled: false                    # Databases shouldn't be externally accessible
+      
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+      requests:
+        cpu: 500m
+        memory: 512Mi
+        
+    # Custom health checks for database
+    healthChecks:
+      livenessProbe:
+        exec:
+          command:
+            - pg_isready
+            - -U
+            - appuser
+            - -d
+            - myappdb
+        initialDelaySeconds: 30
+        periodSeconds: 30
+      readinessProbe:
+        exec:
+          command:
+            - pg_isready
+            - -U
+            - appuser
+            - -d
+            - myappdb
+        initialDelaySeconds: 5
+        periodSeconds: 5
+
+# ===========================
+# ADVANCED CONFIGURATION EXAMPLES
+# ===========================
+
+# Example: Conditional application based on environment
+# - name: "debug-tools"
+#   enabled: {{ eq .Values.global.environment "development" }}  # Only in dev
+#   image:
+#     repository: "debug/tools"
+#     tag: "latest"
+
+# Example: Application with advanced networking
+# - name: "secure-app"
+#   enabled: true
+#   service:
+#     type: ClusterIP
+#     ports:                           # Multiple ports
+#       - name: http
+#         port: 80
+#         targetPort: 8080
+#       - name: metrics
+#         port: 9090
+#         targetPort: 9090
+
+# Example: Application with persistent storage
+# - name: "stateful-app"
+#   enabled: false
+#   persistence:
+#     enabled: true
+#     storageClass: "fast-ssd"
+#     accessMode: ReadWriteOnce
+#     size: "10Gi"
+#     mountPath: "/data"
+
+# Example: Application with init containers
+# - name: "app-with-init"
+#   enabled: false
+#   initContainers:
+#     - name: wait-for-db
+#       image: busybox:1.28
+#       command: ['sh', '-c', 'until nslookup database; do sleep 2; done;']
+
+# Example: Application with sidecars
+# - name: "app-with-sidecar"
+#   enabled: false
+#   sidecars:
+#     - name: log-shipper
+#       image: fluent/fluent-bit:latest
+#       volumeMounts:
+#         - name: varlog
+#           mountPath: /var/log

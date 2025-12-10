@@ -1,105 +1,76 @@
-# Production Environment Values
-# Override default values for production environment
+# Multi-Application Production Environment Configuration
 
+# ===========================
+# 1. GLOBAL CONFIGURATION
+# ===========================
 global:
   environment: "production"
   registry: "docker.io"
   imageTag: "latest"
   namespace: "my-app-prod"
 
-application:
-  name: "my-tomorrows-app"
-  version: "1.0.0"
+namespace:
+  name: my-app-prod
+  create: true
+  labels:
+    environment: "production"
 
-# High availability for production
-replicaCount: 3
+environment: "production"
 
-image:
-  repository: "cloudandparth/my-demo-app"
-  pullPolicy: "IfNotPresent"
-  tag: "latest"  # Use specific version tags in prod
+# Shared infrastructure configuration
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
 
-# Service configuration for production
-service:
-  type: ClusterIP
-  port: 80
-  targetPort: 9090
+serviceAccount:
+  create: true
+  automount: false
+  annotations: {}
+  name: ""
 
-# Ingress configuration for production
-ingress:
+networkPolicy:
   enabled: true
-  className: "nginx"
-  annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /
-    cert-manager.io/cluster-issuer: "letsencrypt-prod"
-    nginx.ingress.kubernetes.io/rate-limit: "100"
-    nginx.ingress.kubernetes.io/rate-limit-window: "1m"
-  hosts:
-    - host: my-app-prod.local
-      paths:
-        - path: /
-          pathType: Prefix
-  tls:
-    - secretName: my-app-prod-tls
-      hosts:
-        - my-app-prod.local
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow traffic from AWS Load Balancer (ALB uses IP targets)
+    - from: []  # ALB will connect directly to pods
+      ports:
+        - protocol: TCP
+          port: 5000
+        - protocol: TCP
+          port: 80
+  egress:
+    # DNS resolution only
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+    # HTTPS for external APIs only
+    - to: []
+      ports:
+        - protocol: TCP
+          port: 443
 
-# Higher resource limits for production
-resources:
-  limits:
-    cpu: 1000m
-    memory: 1Gi
-  requests:
-    cpu: 500m
-    memory: 512Mi
-
-# Strict health checks for production
-livenessProbe:
-  httpGet:
-    path: /health
-    port: 9090
-  initialDelaySeconds: 30
-  periodSeconds: 10
-  timeoutSeconds: 5
-  failureThreshold: 3
-
-readinessProbe:
-  httpGet:
-    path: /health
-    port: 9090
-  initialDelaySeconds: 15
-  periodSeconds: 5
-  timeoutSeconds: 3
-  failureThreshold: 3
-
-startupProbe:
-  httpGet:
-    path: /health
-    port: 9090
-  initialDelaySeconds: 20
-  periodSeconds: 10
-  failureThreshold: 30
-
-# Production-specific environment variables
-env:
-  - name: ENVIRONMENT
-    value: "production"
-  - name: LOG_LEVEL
-    value: "ERROR"
-  - name: DEBUG
-    value: "false"
-  - name: METRICS_ENABLED
-    value: "true"
-
-# Aggressive autoscaling for production
-autoscaling:
+rbac:
   enabled: true
-  minReplicas: 3
-  maxReplicas: 10
-  targetCPUUtilizationPercentage: 60
-  targetMemoryUtilizationPercentage: 70
+  rules:
+    - apiGroups: [""]
+      resources: ["pods"]
+      verbs: ["get"]
+    - apiGroups: [""]
+      resources: ["configmaps"]
+      verbs: ["get"]
 
-# Strict security context for production
+# Pod annotations and labels
+podAnnotations: {}
+podLabels: {}
+
+# Security contexts - production grade
 podSecurityContext:
   runAsNonRoot: true
   runAsUser: 10001
@@ -118,59 +89,16 @@ securityContext:
     drop:
     - ALL
 
-# RBAC for production (minimal permissions)
-rbac:
-  create: true
-  rules:
-    - apiGroups: [""]
-      resources: ["pods"]
-      verbs: ["get"]
-    - apiGroups: [""]
-      resources: ["configmaps"]
-      verbs: ["get"]
-
-# Strict network policies for production
-networkPolicy:
+# Pod Disruption Budget for production
+podDisruptionBudget:
   enabled: true
-  policyTypes:
-    - Ingress
-    - Egress
-  ingress:
-    - from:
-        - namespaceSelector:
-            matchLabels:
-              name: ingress-nginx
-        - podSelector:
-            matchLabels:
-              app.kubernetes.io/name: ingress-nginx
-      ports:
-        - protocol: TCP
-          port: 9090
-  egress:
-    # DNS resolution only
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              name: kube-system
-      ports:
-        - protocol: UDP
-          port: 53
-    # HTTPS for external APIs only
-    - to: []
-      ports:
-        - protocol: TCP
-          port: 443
+  minAvailable: 2
 
 # Pod Security Standards for production
 podSecurityStandards:
   enforce: "restricted"
   audit: "restricted"
   warn: "restricted"
-
-# Pod disruption budget for production
-podDisruptionBudget:
-  enabled: true
-  minAvailable: 2
 
 # Monitoring configuration for production
 monitoring:
@@ -186,3 +114,339 @@ backup:
   enabled: true
   schedule: "0 2 * * *"  # Daily at 2 AM
   retention: "30d"
+
+# Additional volumes and mounts
+volumes: []
+volumeMounts: []
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# ===========================
+# 2. DEFAULT APP CONFIGURATION
+# ===========================
+# Default configuration applied to all applications
+defaultApp:
+  image:
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 80
+  app:
+    containerPort: 5000
+  security:
+    securityContext:
+      runAsUser: 10001
+      runAsGroup: 10001
+      fsGroup: 10001
+      runAsNonRoot: true
+      fsGroupChangePolicy: "OnRootMismatch"
+      supplementalGroups: []
+    podSecurityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      runAsUser: 10001
+      runAsGroup: 10001
+      runAsNonRoot: true
+      capabilities:
+        drop: ["ALL"]
+        add: []
+
+# ===========================
+# 3. INDIVIDUAL APPLICATIONS
+# ===========================
+# Applications array - production configuration with HA and scaling
+applications:
+  - name: my-tomorrows-api
+    enabled: true
+    image:
+      repository: cloudandparth/my-demo-app
+      tag: "2.0" # Stable production version
+      pullPolicy: IfNotPresent
+    service:
+      type: ClusterIP # Behind ingress controller
+      port: 80
+      targetPort: 5000
+    app:
+      containerPort: 5000
+    config:
+      API_BASE_URL: "https://api.mytomorrows.com"
+      LOG_LEVEL: "ERROR" # Minimal logging in production
+      MAX_CONNECTIONS: "50"
+      SERVICE_NAME: "api-service"
+      ENVIRONMENT: "production"
+      DEBUG: "false"
+      METRICS_ENABLED: "true"
+    secrets:
+      DB_PASSWORD: "YXBpX2RiX3Byb2RfcGFzc3dvcmQ=" # base64: api_db_prod_password
+      SECRET_KEY: "YXBpX3Byb2Rfc2VjcmV0X2tleQ==" # base64: api_prod_secret_key
+    resources:
+      requests:
+        cpu: 500m
+        memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+    healthChecks:
+      livenessProbe:
+        httpGet:
+          path: /health
+          port: 5000
+        initialDelaySeconds: 30
+        periodSeconds: 10
+        timeoutSeconds: 5
+        failureThreshold: 3
+      readinessProbe:
+        httpGet:
+          path: /health
+          port: 5000
+        initialDelaySeconds: 15
+        periodSeconds: 5
+        timeoutSeconds: 3
+        failureThreshold: 3
+      startupProbe:
+        httpGet:
+          path: /health
+          port: 5000
+        initialDelaySeconds: 20
+        periodSeconds: 10
+        failureThreshold: 30
+    ingress:
+      enabled: true
+      host: api.mytomorrows.com
+      path: /api
+      annotations:
+        # AWS Load Balancer Controller annotations
+        kubernetes.io/ingress.class: "alb"
+        alb.ingress.kubernetes.io/scheme: "internet-facing"
+        alb.ingress.kubernetes.io/target-type: "ip"
+        alb.ingress.kubernetes.io/load-balancer-name: "my-app-prod-api-alb"
+        
+        # SSL configuration for AWS ALB
+        alb.ingress.kubernetes.io/ssl-redirect: "443"
+        alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:us-west-2:123456789012:certificate/12345678-1234-1234-1234-123456789012"
+        alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+        alb.ingress.kubernetes.io/ssl-policy: "ELBSecurityPolicy-TLS-1-2-2017-01"
+        
+        # Target group health check settings
+        alb.ingress.kubernetes.io/healthcheck-path: "/health"
+        alb.ingress.kubernetes.io/healthcheck-port: "traffic-port"
+        alb.ingress.kubernetes.io/healthcheck-protocol: "HTTP"
+        alb.ingress.kubernetes.io/healthcheck-interval-seconds: "30"
+        alb.ingress.kubernetes.io/healthcheck-timeout-seconds: "5"
+        alb.ingress.kubernetes.io/healthy-threshold-count: "2"
+        alb.ingress.kubernetes.io/unhealthy-threshold-count: "3"
+
+        # Security and performance
+        alb.ingress.kubernetes.io/security-groups: "sg-12345678"
+        alb.ingress.kubernetes.io/subnets: "subnet-12345678,subnet-87654321"
+      tls: true
+    autoscaling:
+      enabled: true
+      minReplicas: 3
+      maxReplicas: 10
+      targetCPUUtilizationPercentage: 60
+      targetMemoryUtilizationPercentage: 70
+
+  - name: my-tomorrows-admin
+    enabled: true
+    image:
+      repository: nginx
+      tag: "alpine"
+      pullPolicy: IfNotPresent
+    service:
+      type: ClusterIP
+      port: 80
+      targetPort: 80
+    app:
+      containerPort: 80
+    config:
+      API_ENDPOINT: "http://my-tomorrows-api-service.my-app-prod.svc.cluster.local"
+      ENVIRONMENT: "production"
+      SERVICE_NAME: "admin-dashboard"
+    secrets:
+      ADMIN_SECRET: "YWRtaW5fcHJvZF9zZWNyZXQ=" # base64: admin_prod_secret
+    resources:
+      requests:
+        cpu: 200m
+        memory: 256Mi
+      limits:
+        cpu: 400m
+        memory: 512Mi
+    healthChecks:
+      livenessProbe:
+        httpGet:
+          path: /
+          port: 80
+        initialDelaySeconds: 60
+        periodSeconds: 30
+      readinessProbe:
+        httpGet:
+          path: /
+          port: 80
+        initialDelaySeconds: 10
+        periodSeconds: 10
+      startupProbe:
+        httpGet:
+          path: /
+          port: 80
+        initialDelaySeconds: 30
+        periodSeconds: 10
+        failureThreshold: 60
+    ingress:
+      enabled: true
+      host: admin.mytomorrows.com
+      path: /
+      annotations:
+        # AWS Load Balancer Controller annotations
+        kubernetes.io/ingress.class: "alb"
+        alb.ingress.kubernetes.io/scheme: "internet-facing"
+        alb.ingress.kubernetes.io/target-type: "ip"
+        alb.ingress.kubernetes.io/load-balancer-name: "my-app-prod-admin-alb"
+        
+        # SSL configuration for AWS ALB
+        alb.ingress.kubernetes.io/ssl-redirect: "443"
+        alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:us-west-2:123456789012:certificate/12345678-1234-1234-1234-123456789012"
+        alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+        alb.ingress.kubernetes.io/ssl-policy: "ELBSecurityPolicy-TLS-1-2-2017-01"
+        
+        # Target group health check settings
+        alb.ingress.kubernetes.io/healthcheck-path: "/"
+        alb.ingress.kubernetes.io/healthcheck-port: "traffic-port"
+        alb.ingress.kubernetes.io/healthcheck-protocol: "HTTP"
+        
+        # Security and performance
+        alb.ingress.kubernetes.io/security-groups: "sg-12345678"
+        alb.ingress.kubernetes.io/subnets: "subnet-12345678,subnet-87654321"
+      tls: true
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 5
+      targetCPUUtilizationPercentage: 70
+
+  - name: my-tomorrows-worker
+    enabled: true
+    image:
+      repository: cloudandparth/my-demo-worker
+      tag: "2.0"
+      pullPolicy: IfNotPresent
+    service:
+      type: ClusterIP # Internal service only
+      port: 3000
+      targetPort: 3000
+    app:
+      containerPort: 3000
+    config:
+      QUEUE_URL: "redis://redis.my-app-prod.svc.cluster.local:6379"
+      WORKER_THREADS: "8"
+      LOG_LEVEL: "ERROR" # Only errors in production
+      SERVICE_NAME: "background-worker"
+    secrets:
+      WORKER_SECRET: "d29ya2VyX3NlY3JldF9wcm9k" # base64: worker_secret_prod
+    resources:
+      requests:
+        cpu: 300m
+        memory: 384Mi
+      limits:
+        cpu: 600m
+        memory: 768Mi
+    healthChecks:
+      livenessProbe:
+        httpGet:
+          path: /health
+          port: 3000
+        initialDelaySeconds: 60
+        periodSeconds: 30
+      readinessProbe:
+        httpGet:
+          path: /ready
+          port: 3000
+        initialDelaySeconds: 10
+        periodSeconds: 10
+      startupProbe:
+        httpGet:
+          path: /startup
+          port: 3000
+        initialDelaySeconds: 30
+        periodSeconds: 10
+        failureThreshold: 60
+    ingress:
+      enabled: false # Worker doesn't need external access
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 8
+      targetCPUUtilizationPercentage: 75
+
+  - name: my-tomorrows-monitoring
+    enabled: true # Fourth application - monitoring service
+    image:
+      repository: prom/prometheus
+      tag: "latest"
+      pullPolicy: IfNotPresent
+    service:
+      type: ClusterIP
+      port: 9090
+      targetPort: 9090
+    app:
+      containerPort: 9090
+    config:
+      SCRAPE_INTERVAL: "15s"
+      EVALUATION_INTERVAL: "15s"
+      SERVICE_NAME: "monitoring"
+    secrets:
+      MONITORING_SECRET: "bW9uaXRvcmluZ19zZWNyZXRfcHJvZA==" # base64: monitoring_secret_prod
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+    healthChecks:
+      livenessProbe:
+        httpGet:
+          path: /-/healthy
+          port: 9090
+        initialDelaySeconds: 30
+        periodSeconds: 15
+      readinessProbe:
+        httpGet:
+          path: /-/ready
+          port: 9090
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      startupProbe:
+        httpGet:
+          path: /-/healthy
+          port: 9090
+        initialDelaySeconds: 10
+        periodSeconds: 10
+        failureThreshold: 30
+    ingress:
+      enabled: true
+      host: monitoring.mytomorrows.com
+      path: /
+      annotations:
+        # AWS Load Balancer Controller annotations
+        kubernetes.io/ingress.class: "alb"
+        alb.ingress.kubernetes.io/scheme: "internet-facing"
+        alb.ingress.kubernetes.io/target-type: "ip"
+        alb.ingress.kubernetes.io/load-balancer-name: "my-app-prod-monitoring-alb"
+        
+        # SSL configuration for AWS ALB
+        alb.ingress.kubernetes.io/ssl-redirect: "443"
+        alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:us-west-2:123456789012:certificate/12345678-1234-1234-1234-123456789012"
+        alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+        alb.ingress.kubernetes.io/ssl-policy: "ELBSecurityPolicy-TLS-1-2-2017-01"
+        
+        # Target group health check settings
+        alb.ingress.kubernetes.io/healthcheck-path: "/-/healthy"
+        alb.ingress.kubernetes.io/healthcheck-port: "traffic-port"
+        alb.ingress.kubernetes.io/healthcheck-protocol: "HTTP"
+        
+        # Security and performance
+        alb.ingress.kubernetes.io/security-groups: "sg-12345678"
+        alb.ingress.kubernetes.io/subnets: "subnet-12345678,subnet-87654321"
+      tls: true

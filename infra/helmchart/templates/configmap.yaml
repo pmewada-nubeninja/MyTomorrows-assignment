@@ -1,10 +1,21 @@
+{{- range $app := .Values.applications }}
+{{- if $app.enabled }}
+{{- if $app.app.config }}
+---
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ include "app-umbrella-chart.fullname" . }}-config
+  name: {{ $app.name }}-config
+  namespace: {{ $.Values.namespace.name }}
   labels:
-    {{- include "app-umbrella-chart.labels" . | nindent 4 }}
+    app.kubernetes.io/name: {{ $app.name }}
+    app.kubernetes.io/instance: {{ $.Release.Name }}
+    app.kubernetes.io/version: {{ $.Chart.AppVersion | quote }}
+    app.kubernetes.io/managed-by: {{ $.Release.Service }}
 data:
-  API_BASE_URL: {{ .Values.app.config.API_BASE_URL | quote }}
-  LOG_LEVEL: {{ .Values.app.config.LOG_LEVEL | quote }}
-  MAX_CONNECTIONS: {{ .Values.app.config.MAX_CONNECTIONS | quote }}
+  {{- range $key, $value := $app.app.config }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
