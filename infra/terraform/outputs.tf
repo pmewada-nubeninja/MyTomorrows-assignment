@@ -60,19 +60,14 @@ output "access_instructions" {
 # MULTI-APPLICATION DEPLOYMENT INFO
 # ==========================================
 
-output "deployment_mode" {
-  description = "Deployment mode - always multi-app"
-  value       = "multi-app"
-}
-
 output "managed_applications" {
   description = "List of applications managed by Terraform"
   value = [
     for idx, app in var.applications : {
       index        = idx
       name         = app.name
-      enabled      = app.enabled
       image        = app.image_repository != null ? "${app.image_repository}:${app.image_tag}" : "using-helm-default"
+      enabled      = app.enabled
       registry     = app.registry != null ? app.registry : (var.global_image_overrides.registry != null ? var.global_image_overrides.registry : "using-helm-default")
       tag_prefix   = app.tag_prefix != null ? app.tag_prefix : (var.global_image_overrides.tag_prefix != null ? var.global_image_overrides.tag_prefix : "using-helm-default")
       replicas     = app.replicas
