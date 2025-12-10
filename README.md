@@ -4,7 +4,7 @@
 This solution provides a production-ready, enterprise-grade infrastructure for deploying multiple applications across different environments using Kubernetes, Helm, and Terraform. The architecture supports scalable deployment from development to production with consistent patterns and security best practices.
 
 ### Note
-* This code base has been only tested on Local MiniKiube (DockerDesktop Kubernets) only. 
+* This code base has been only tested on Local DockerDesktop Kubernets only. 
 * Testing was done using dev environment files only. 
 * Staging and Prod env file in helmchart, terraform are only for presentation. Those are not thoroughly tested. 
 
