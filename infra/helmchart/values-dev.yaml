@@ -179,40 +179,7 @@ applications:
         cpu: 100m
         memory: 128Mi
 
-  # Application 2: Admin Dashboard
-  - name: "my-tomorrows-admin"
-    enabled: true
-    replicaCount: 1
-    image:
-      repository: "nginx"
-      tag: "alpine"
-      pullPolicy: "IfNotPresent"
-    service:
-      type: NodePort
-      port: 80
-      targetPort: 80
-      nodePort: 30081
-    app:
-      containerPort: 80
-      secrets:
-        ADMIN_SECRET: "YWRtaW5fc2VjcmV0"  # admin_secret
-      config:
-        API_ENDPOINT: "http://my-tomorrows-api-service.my-app-dev.svc.cluster.local"
-        ENVIRONMENT: "development"
-        SERVICE_NAME: "admin-dashboard"
-        LOG_LEVEL: "DEBUG"
-        DEBUG: "true"
-    ingress:
-      enabled: false
-    resources:
-      limits:
-        cpu: 100m
-        memory: 128Mi
-      requests:
-        cpu: 50m
-        memory: 64Mi
-
-  # Application 3: Background Worker (disabled by default in dev)
+  # Application 2: Background Worker (disabled by default in dev)
   - name: "my-tomorrows-worker"
     enabled: false
     replicaCount: 1
