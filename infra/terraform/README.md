@@ -1,24 +1,49 @@
 # Terraform Configuration
 
-This Terraform configuration supports deploying and managing multiple applications using the umbrella Helm chart. It provides flexible deployment options for both single and multi-application scenarios with structured, maintainable approach.
+This Terraform configuration deploys and manages multiple applications using an umbrella Helm chart approach. It provides a clean, modern multi-application deployment system with flexible configuration options and clear precedence hierarchies.
 
-## Architecture & Deployment Modes
+## Architecture Overview
 
-The configuration supports flexible multi-application deployment with:
-
-### Single Unified Approach
-Each environment file can deploy any number of applications (1 to N) using the same configuration structure.
+The configuration uses a **pure multi-application approach** where:
+- Each environment deploys multiple applications using a single Helm chart
+- Applications can be configured individually or globally
+- Configuration follows a clear three-tier precedence system
+- All environments use the same deployment patterns
 
 ### Environment Progression
-Applications scale from development to production with increasing complexity and enterprise features.
+Applications scale from development to production with increasing complexity:
+- **Development**: 2 applications (API + Worker)
+- **Staging**: 3 applications (API + Admin + Worker)  
+- **Production**: 4 applications (API + Admin + Worker + Monitoring)
 
-## Configuration Structure
+## Configuration Precedence System
 
-All configuration files follow a consistent three-section structure:
+The configuration supports a **three-tier precedence hierarchy** for maximum flexibility:
 
-1. **Global Configuration** - Environment settings, registries, global overrides
-2. **Application Specific Configuration** - Individual application definitions  
-3. **Legacy Configuration** - Backward compatibility settings
+### 1. Application-Level (Highest Precedence)
+Individual application settings override all other configurations:
+```hcl
+applications = [
+  {
+    name         = "api-service"
+    registry     = "my-private-registry.com"    # Overrides global and helm defaults
+    tag_prefix   = "v2.0"                       # Overrides global and helm defaults
+    # ... other config
+  }
+]
+```
+
+### 2. Global-Level (Medium Precedence)
+Global settings apply to all applications unless overridden:
+```hcl
+global_image_overrides = {
+  registry    = "company-registry.com"          # Applied if app doesn't specify
+  tag_prefix  = "v1.5"                         # Applied if app doesn't specify
+}
+```
+
+### 3. Helm Values (Default/Lowest Precedence)
+Default values from `values-{env}.yaml` files serve as fallbacks.
 
 ## Environment Files
 
@@ -86,14 +111,21 @@ terraform apply -var-file="environments/prod.tfvars"
 - **Logging**: WARN level for performance
 - **Features**: Monitoring and enterprise features
 
-## Multi-Application Setup
+## Multi-Application Configuration
 
 ```hcl
+# Example with mixed precedence levels
+global_image_overrides = {
+  registry    = "dev-registry.company.com"
+  tag_prefix  = "dev"
+}
+
 applications = [
   {
     name               = "my-tomorrows-api"
     image_repository   = "cloudandparth/my-demo-app"
     image_tag         = "2.0"
+    # Uses global registry and tag_prefix
     replicas          = 3
     enabled           = true
     env_variables = {
@@ -109,6 +141,8 @@ applications = [
     name               = "my-tomorrows-worker"
     image_repository   = "cloudandparth/my-demo-app"
     image_tag         = "2.0"
+    registry          = "worker-registry.com"        # Overrides global registry
+    tag_prefix        = "worker-v1"                  # Overrides global tag_prefix
     replicas          = 2
     enabled           = true
     env_variables = {
@@ -126,10 +160,24 @@ applications = [
 - `release_name`: Helm release name
 - `chart_path`: Path to Helm chart
 
-### Multi-Application Variables
-- `applications`: List of application configurations
+### Application Configuration
+- `applications`: List of application configurations with the following fields:
+  - `name`: Application name (required)
+  - `image_repository`: Override image repository (optional)
+  - `image_tag`: Override image tag (optional)
+  - `registry`: Application-level registry override (optional, highest precedence)
+  - `tag_prefix`: Application-level tag prefix override (optional, highest precedence)
+  - `replicas`: Override replica count (optional)
+  - `enabled`: Enable/disable application (optional)
+  - `env_variables`: Additional environment variables (optional)
+  - `secrets`: Override secrets (optional)
+
+### Global Configuration
 - `manage_application_state`: Enable/disable applications via Terraform
 - `global_image_overrides`: Global settings for all applications
+  - `registry`: Global registry for all applications (medium precedence)
+  - `tag_prefix`: Global tag prefix for all applications (medium precedence)
+  - `pull_policy`: Global image pull policy
 
 ## Use Cases
 
@@ -179,9 +227,28 @@ global_image_overrides = {
 The configuration provides detailed outputs about your deployment:
 
 ```bash
-terraform output deployment_mode           # single-app-legacy or multi-app
-terraform output managed_applications      # List of managed applications
-terraform output terraform_overrides_summary  # Summary of overrides
+terraform output deployment_mode           # Always "multi-app"
+terraform output managed_applications      # List of managed applications with precedence resolution
+terraform output terraform_overrides_summary  # Summary of configuration overrides
+```
+
+### Example Output
+```bash
+# Shows effective configuration after precedence resolution
+managed_applications = [
+  {
+    name = "my-tomorrows-api"
+    registry = "dev-registry.company.com"      # From global config
+    tag_prefix = "dev"                         # From global config
+    # ... other fields
+  },
+  {
+    name = "my-tomorrows-worker"
+    registry = "worker-registry.com"           # From app-level override
+    tag_prefix = "worker-v1"                   # From app-level override
+    # ... other fields
+  }
+]
 ```
 
 ## Security Best Practices
@@ -212,20 +279,22 @@ applications = [
 
 ## Key Features
 
-🔸 **Unified Configuration**: Single approach for deploying 1 to N applications per environment  
-🔸 **Environment Progression**: Structured deployment from dev (2 apps) to production (4 apps)  
-🔸 **Flexible Application Management**: Enable/disable applications, update individually  
-🔸 **Global Configuration**: Apply settings across all applications  
+🔸 **Pure Multi-Application Architecture**: Clean, modern approach for deploying multiple applications  
+🔸 **Three-Tier Precedence System**: Application > Global > Helm values configuration hierarchy  
+🔸 **Environment Progression**: Structured scaling from dev (2 apps) to production (4 apps)  
+🔸 **Flexible Application Management**: Individual application enable/disable and configuration  
+🔸 **Registry Management**: Multi-level image registry and tag configuration  
 🔸 **Production Ready**: Enterprise features scaling with environment complexity  
 
 ## Implementation Status
 
-✅ **Multi-Application Architecture**: Unified approach for 1-N applications per environment  
+✅ **Clean Multi-Application Architecture**: No legacy code, pure multi-app approach  
+✅ **Three-Tier Precedence System**: Application, global, and helm values precedence  
 ✅ **Environment Configurations**: Dev (2), Staging (3), Production (4) applications  
-✅ **Global Registry Support**: Centralized image registry management  
+✅ **Advanced Registry Support**: Per-application and global registry management  
 ✅ **Application State Management**: Enable/disable applications via Terraform  
 ✅ **Security Features**: Production secrets management and security contexts  
-✅ **Terraform Outputs**: Comprehensive deployment information  
+✅ **Comprehensive Outputs**: Deployment information with precedence resolution  
 
 ## Troubleshooting
 
@@ -336,11 +405,13 @@ terraform destroy
 
 ## Summary
 
-This Terraform configuration provides enterprise-grade multi-application management with:
-- Support for 1 to N applications per environment using unified configuration approach
-- Environment-specific configurations: Dev (2), Staging (3), Production (4) applications
-- Global configuration management across applications
-- Production-ready security and monitoring features
-- Flexible application state management (enable/disable individual apps)
+This Terraform configuration provides a modern, enterprise-grade multi-application deployment system with:
 
-The configuration scales seamlessly from simple single-application deployments to complex multi-application enterprise environments.
+- **Pure Multi-Application Architecture**: Clean, maintainable approach without legacy baggage
+- **Three-Tier Precedence System**: Application > Global > Helm values configuration hierarchy
+- **Environment-Specific Configurations**: Dev (2), Staging (3), Production (4) applications
+- **Advanced Registry Management**: Per-application and global image registry configuration
+- **Production-Ready Security**: Enterprise security features and secrets management
+- **Flexible Application Control**: Individual application state management and configuration
+
+The configuration scales seamlessly from simple development deployments to complex enterprise environments with clear, maintainable patterns and no backward compatibility complexity.
