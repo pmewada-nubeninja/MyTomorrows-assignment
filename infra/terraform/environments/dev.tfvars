@@ -1,66 +1,60 @@
-# Development Environment Configuration
-# Kubernetes Configuration
-kubeconfig_path = "~/.kube/config"
-kube_context    = "docker-desktop"
+# Multi-Application Development Environment Configuration
+# Example: Managing 2 applications via Terraform
 
-# Environment Configuration
-environment  = "dev"
-namespace    = "my-app-dev"
-release_name = "my-tomorrows-app"
-chart_path   = "../helmchart"
+# ==========================================
+# GLOBAL CONFIGURATION
+# ==========================================
 
-# Application Configuration Overrides (optional - defaults from values-dev.yaml)
-# app_replicas             = 1
-# app_image_repository     = "cloudandparth/my-demo-app"
-# app_image_tag            = "1.0"
-# app_image_pull_policy    = "Always"
-# app_container_port       = 5000
+# Core deployment settings
+environment   = "dev"
+release_name  = "my-app-dev"
+namespace     = "my-app-dev"
+chart_path    = "../helmchart"
 
-# Service Configuration Overrides (optional - defaults from values-dev.yaml)
-# service_type             = "NodePort"
-# service_port             = 80
-# service_target_port      = 5000
-# service_node_port        = 30080
+# Manage application enabled/disabled state via Terraform
+manage_application_state = true
 
-# Ingress Configuration Overrides (optional - defaults from values-dev.yaml)
-# ingress_enabled          = false
-# ingress_class_name       = "nginx"
-# ingress_host             = "my-app-dev.local"
-# ingress_hosts_path       = "/"
-# ingress_hosts_path_type  = "Prefix"
+global_image_overrides = {
+  registry    = "docker.io"            # Optional: override global registry
+  tag_prefix  = "1.0"                  # Optional: global tag prefix
+  pull_policy = "IfNotPresent"         # Optional: global pull policy
+}
 
-# Resource Configuration Overrides (optional - defaults from values-dev.yaml)
-# resource_limits_cpu      = "200m"
-# resource_limits_memory   = "256Mi"
-# resource_requests_cpu    = "100m"
-# resource_requests_memory = "128Mi"
-
-# Health Check Overrides (optional - defaults from values-dev.yaml)
-# liveness_probe_path      = "/health"
-# liveness_probe_port      = 5000
-# readiness_probe_path     = "/health"
-# readiness_probe_port     = 5000
-# startup_probe_path       = "/health"
-# startup_probe_port       = 5000
-
-# Security Configuration Overrides (optional - defaults from values-dev.yaml)
-# security_context_run_as_non_root = true
-# security_context_run_as_user     = 10001
-# security_context_run_as_group    = 10001
-# rbac_enabled                     = true
-# network_policy_enabled           = true
-
-# Application Environment Variables (optional - additional to values file)
-# app_env_variables = {
-#   "CUSTOM_VAR1" = "value1"
-#   "CUSTOM_VAR2" = "value2"
-# }
-
-# Optional overrides for application configuration
-# api_base_url    = "https://dev-api.example.com"
-# log_level       = "DEBUG"
-# max_connections = "50"
-
-# Secrets (leave empty to auto-generate for dev)
-# secret_key  = ""
-# db_password = ""
+# ==========================================
+# APPLICATION SPECIFIC CONFIGURATION
+# ==========================================
+applications = [
+  {
+    name               = "my-tomorrows-api"      # Must match name in values-dev.yaml
+    enabled            = true                    # Ensure it's enabled
+    image_repository   = "cloudandparth/my-demo-app"
+    image_tag          = "1.0"                   # Override to newer version
+    replicas           = 1                       # Scale up for testing
+    env_variables = {
+      "DEBUG"           = "true"
+      "LOG_LEVEL"       = "DEBUG"
+      "API_BASE_URL"    = "https://dev-api.example.com"
+      "MAX_CONNECTIONS" = "15"                  # Override default
+    }
+    secrets = {
+      "SECRET_KEY"  = "new-api-secret-key-dev"
+      "DB_PASSWORD" = "new-db-password-dev"
+    }
+  },
+  {
+    name               = "my-tomorrows-worker"        # Second application
+    image_repository   = "cloudandparth/my-demo-app"
+    image_tag          = "1.0"                        # Same image, different config
+    replicas           = 2                            # Enable worker with 2 replicas
+    enabled            = true                         # Enable worker in dev
+    env_variables = {
+      "LOG_LEVEL"    = "INFO"
+      "QUEUE_URL"    = "redis://redis.my-app-dev.svc.cluster.local:6379"
+      "SERVICE_NAME" = "background-worker-v2"
+    }
+    secrets = {
+      "WORKER_SECRET"   = "new-worker-secret-dev"
+      "QUEUE_PASSWORD"  = "new-queue-password-dev"
+    }
+  }
+]

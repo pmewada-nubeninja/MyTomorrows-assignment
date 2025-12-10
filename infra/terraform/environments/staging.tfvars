@@ -1,60 +1,80 @@
-# Staging Environment Configuration
-# Kubernetes Configuration
-kubeconfig_path = "~/.kube/config"
-kube_context    = "docker-desktop"
+# Multi-Application Staging Environment Configuration
+# Example: Managing 3 applications via Terraform
 
-# Environment Configuration
-environment  = "staging"
-namespace    = "my-app-staging"
-release_name = "my-tomorrows-app"
-chart_path   = "../helmchart"
+# ==========================================
+# GLOBAL CONFIGURATION
+# ==========================================
 
-# Application Configuration Overrides (optional - defaults from values-staging.yaml)
-# app_replicas             = 2
-# app_image_repository     = "cloudandparth/my-demo-app"
-# app_image_tag            = "1.0"
-# app_image_pull_policy    = "IfNotPresent"
+# Core deployment settings
+environment   = "staging"
+release_name  = "my-app-staging"
+namespace     = "my-app-staging"
+chart_path    = "../helmchart"
 
-# Service Configuration Overrides (optional - defaults from values-staging.yaml)
-# service_type             = "ClusterIP"
-# service_port             = 80
-# service_target_port      = 5000
+# Manage application enabled/disabled state via Terraform
+manage_application_state = true
 
-# Ingress Configuration Overrides (optional - defaults from values-staging.yaml)
-# ingress_enabled          = true
-# ingress_class_name       = "nginx"
-# ingress_host             = "my-app-staging.local"
-# ingress_hosts_path       = "/"
-# ingress_hosts_path_type  = "Prefix"
+global_image_overrides = {
+  registry    = "docker.io"                # Staging registry
+  tag_prefix  = "1.2"                      # Staging tag prefix
+  pull_policy = "Always"                   # Always pull for staging testing
+}
 
-# Resource Configuration Overrides (optional - defaults from values-staging.yaml)
-# resource_limits_cpu      = "500m"
-# resource_limits_memory   = "512Mi"
-# resource_requests_cpu    = "250m"
-# resource_requests_memory = "256Mi"
-
-# Autoscaling Overrides (optional - defaults from values-staging.yaml)
-# autoscaling_enabled                    = true
-# autoscaling_min_replicas               = 2
-# autoscaling_max_replicas               = 5
-# autoscaling_target_cpu_utilization     = 70
-# autoscaling_target_memory_utilization  = 80
-
-# Security Configuration Overrides (optional - defaults from values-staging.yaml)
-# security_context_run_as_non_root = true
-# security_context_run_as_user     = 10001
-# rbac_enabled                     = true
-# network_policy_enabled           = true
-
-# Pod Disruption Budget Overrides (optional)
-# pod_disruption_budget_enabled      = true
-# pod_disruption_budget_min_available = "50%"
-
-# Optional overrides for application configuration
-# api_base_url    = "https://staging-api.example.com"
-# log_level       = "INFO"
-# max_connections = "75"
-
-# Secrets (leave empty to auto-generate for staging)
-# secret_key  = ""
-# db_password = ""
+# ==========================================
+# APPLICATION SPECIFIC CONFIGURATION
+# ==========================================
+applications = [
+  {
+    name               = "my-tomorrows-api"      # Must match name in values-staging.yaml
+    enabled            = true                    # Ensure it's enabled
+    image_repository   = "docker.io/my-tomorrows-api"
+    image_tag          = "1.2.5"                 # Staging version
+    replicas           = 3                       # Higher replicas for staging load testing
+    env_variables = {
+      "DEBUG"           = "false"
+      "LOG_LEVEL"       = "INFO"
+      "API_BASE_URL"    = "https://staging-api.mytomorrows.com"
+      "MAX_CONNECTIONS" = "25"                  # Moderate connections for staging
+      "ENV"             = "staging"
+    }
+    secrets = {
+      "SECRET_KEY"  = "staging-api-secret-key-2024"
+      "DB_PASSWORD" = "staging-db-password-secure"
+    }
+  },
+  {
+    name               = "my-tomorrows-admin"     # Admin panel for staging
+    image_repository   = "docker.io/my-tomorrows-admin"
+    image_tag          = "1.1.8"                 # Admin staging version
+    replicas           = 2                       # Admin panel replicas
+    enabled            = true                    # Enable admin in staging
+    env_variables = {
+      "LOG_LEVEL"       = "INFO"
+      "ADMIN_BASE_URL"  = "https://staging-admin.mytomorrows.com"
+      "SESSION_TIMEOUT" = "3600"               # 1 hour sessions
+      "ENV"             = "staging"
+    }
+    secrets = {
+      "ADMIN_SECRET"    = "staging-admin-secret-key"
+      "SESSION_KEY"     = "staging-session-encryption-key"
+    }
+  },
+  {
+    name               = "my-tomorrows-worker"        # Background worker
+    image_repository   = "docker.io/my-tomorrows-worker"
+    image_tag          = "1.0.12"                      # Worker staging version
+    replicas           = 2                             # Multiple workers for staging
+    enabled            = true                          # Enable worker in staging
+    env_variables = {
+      "LOG_LEVEL"    = "INFO"
+      "QUEUE_URL"    = "redis://redis.my-app-staging.svc.cluster.local:6379"
+      "SERVICE_NAME" = "staging-background-worker"
+      "BATCH_SIZE"   = "50"                         # Moderate batch size
+      "ENV"          = "staging"
+    }
+    secrets = {
+      "WORKER_SECRET"   = "staging-worker-secret-key"
+      "QUEUE_PASSWORD"  = "staging-redis-password"
+    }
+  }
+]
