@@ -1,0 +1,28 @@
+{{- range $app := .Values.applications }}
+{{- if $app.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $app.name }}-service
+  namespace: {{ $.Values.namespace.name }}
+  labels:
+    app.kubernetes.io/name: {{ $app.name }}
+    app.kubernetes.io/instance: {{ $.Release.Name }}
+    app.kubernetes.io/version: {{ $.Chart.AppVersion | quote }}
+    app.kubernetes.io/managed-by: {{ $.Release.Service }}
+spec:
+  type: {{ $app.service.type | default $.Values.defaultApp.service.type }}
+  ports:
+    - port: {{ $app.service.port | default $.Values.defaultApp.service.port }}
+      targetPort: {{ $app.service.targetPort | default $.Values.defaultApp.service.targetPort }}
+      {{- if and (eq ($app.service.type | default $.Values.defaultApp.service.type) "NodePort") $app.service.nodePort }}
+      nodePort: {{ $app.service.nodePort }}
+      {{- end }}
+      protocol: TCP
+      name: http
+  selector:
+    app.kubernetes.io/name: {{ $app.name }}
+    app.kubernetes.io/instance: {{ $.Release.Name }}
+{{- end }}
+{{- end }}

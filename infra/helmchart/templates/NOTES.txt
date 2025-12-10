@@ -1,0 +1,34 @@
+Multi-Application Deployment Complete!
+
+The following applications have been deployed:
+
+{{- range $app := .Values.applications }}
+{{- if $app.enabled }}
+
+=== {{ $app.name }} ===
+{{- if $app.ingress.enabled }}
+  Ingress URL: http{{ if $app.ingress.tls }}s{{ end }}://{{ $app.ingress.host }}{{ $app.ingress.path | default "/" }}
+{{- else if contains "NodePort" ($app.service.type | default $.Values.defaultApp.service.type) }}
+  NodePort Access: http://localhost:{{ $app.service.nodePort }}
+  
+  Or get the external IP:
+  export NODE_IP=$(kubectl get nodes --namespace {{ $.Values.namespace.name }} -o jsonpath="{.items[0].status.addresses[0].address}")
+  echo http://$NODE_IP:{{ $app.service.nodePort }}
+{{- else if contains "LoadBalancer" ($app.service.type | default $.Values.defaultApp.service.type) }}
+  LoadBalancer: 
+  export SERVICE_IP=$(kubectl get svc --namespace {{ $.Values.namespace.name }} {{ $app.name }}-service --template "{{`{{ range (index .status.loadBalancer.ingress 0) }}{{.}}{{ end }}`}}")
+  echo http://$SERVICE_IP:{{ $app.service.port | default $.Values.defaultApp.service.port }}
+{{- else }}
+  ClusterIP (Port Forward):
+  export POD_NAME=$(kubectl get pods --namespace {{ $.Values.namespace.name }} -l "app.kubernetes.io/name={{ $app.name }}" -o jsonpath="{.items[0].metadata.name}")
+  kubectl --namespace {{ $.Values.namespace.name }} port-forward $POD_NAME 8080:{{ $app.app.containerPort | default $.Values.defaultApp.app.containerPort }}
+  echo "Visit http://127.0.0.1:8080 to access {{ $app.name }}"
+{{- end }}
+
+{{- end }}
+{{- end }}
+
+Useful Commands:
+- Check application status: kubectl get pods,svc -n {{ .Values.namespace.name }}
+- View logs: kubectl logs deployment/<app-name> -n {{ .Values.namespace.name }}
+- Scale application: kubectl scale deployment/<app-name> --replicas=<count> -n {{ .Values.namespace.name }}

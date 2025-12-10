@@ -1,0 +1,21 @@
+{{- range $app := .Values.applications }}
+{{- if $app.enabled }}
+{{- if $app.app.config }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $app.name }}-config
+  namespace: {{ $.Values.namespace.name }}
+  labels:
+    app.kubernetes.io/name: {{ $app.name }}
+    app.kubernetes.io/instance: {{ $.Release.Name }}
+    app.kubernetes.io/version: {{ $.Chart.AppVersion | quote }}
+    app.kubernetes.io/managed-by: {{ $.Release.Service }}
+data:
+  {{- range $key, $value := $app.app.config }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

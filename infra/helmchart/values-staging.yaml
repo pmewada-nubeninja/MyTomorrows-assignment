@@ -1,0 +1,310 @@
+# Multi-Application Staging Environment Values
+# This file configures 3 applications for staging environment with nginx ingress
+
+# ===========================
+# GLOBAL CONFIGURATION
+# ===========================
+global:
+  environment: "staging"
+  registry: "docker.io"
+  imageTag: "latest"
+  namespace: "my-app-staging"
+
+# Namespace configuration for staging
+namespace:
+  create: false  # Namespace created by Terraform
+  name: "my-app-staging"
+
+# Shared infrastructure configuration
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  automount: false
+  annotations: {}
+  name: ""
+
+# RBAC configuration
+rbac:
+  create: true
+  rules:
+    - apiGroups: [""]
+      resources: ["pods"]
+      verbs: ["get", "list"]
+    - apiGroups: [""]
+      resources: ["configmaps"]
+      verbs: ["get", "list"]
+
+# Network Policy configuration (moderate restrictions for staging)
+networkPolicy:
+  enabled: true
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 5000
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 3000
+  egress:
+    - to: []
+      ports:
+        - protocol: UDP
+          port: 53
+    - to: []
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 80
+
+# Pod annotations and labels
+podAnnotations: {}
+podLabels: {}
+
+# Health probes (optimized for staging)
+defaultProbes:
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: http
+    initialDelaySeconds: 30
+    periodSeconds: 10
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: http
+    initialDelaySeconds: 5
+    periodSeconds: 5
+  startupProbe:
+    httpGet:
+      path: /health
+      port: http
+    initialDelaySeconds: 15
+    periodSeconds: 10
+    failureThreshold: 30
+
+# Security contexts
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  fsGroup: 10001
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  capabilities:
+    drop:
+    - ALL
+
+# Pod Disruption Budget for staging
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# Pod Security Standards for staging
+podSecurityStandards:
+  enforce: "restricted"
+  audit: "restricted"
+  warn: "restricted"
+
+# Additional volumes and mounts
+volumes: []
+volumeMounts: []
+nodeSelector: {}
+tolerances: []
+affinity: {}
+
+# ===========================
+# DEFAULT APP CONFIGURATION
+# ===========================
+# Default application template (shared defaults)
+defaultApp:
+  replicaCount: 2
+  image:
+    pullPolicy: "IfNotPresent"
+    tag: "latest"
+  service:
+    type: LoadBalancer
+    port: 80
+    targetPort: 80
+  app:
+    containerPort: 80
+    secrets: {}
+    config: {}
+  ingress:
+    enabled: true
+    className: "nginx"
+    annotations:
+      kubernetes.io/ingress.class: nginx
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/rate-limit: "100"
+      nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+      cert-manager.io/cluster-issuer: letsencrypt-staging
+    host: "staging.mytomorrows.com"
+    path: "/"
+    pathType: "Prefix"
+    tls: true
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 200m
+      memory: 256Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
+
+# ===========================
+# INDIVIDUAL APPLICATIONS
+# ===========================
+applications:
+  # Application 1: Main API Service
+  - name: "my-tomorrows-api"
+    enabled: true
+    replicaCount: 2
+    image:
+      repository: "cloudandparth/my-demo-app"
+      tag: "1.1"  # Different version for staging
+      pullPolicy: "Always"
+    service:
+      type: LoadBalancer
+      port: 80
+      targetPort: 5000
+    app:
+      containerPort: 5000
+      secrets:
+        SECRET_KEY: "YXBpX3N0YWdpbmdfc2VjcmV0X2tleQ=="  # api_staging_secret_key
+        DB_PASSWORD: "YXBpX2RiX3N0YWdpbmdfcGFzc3dvcmQ="  # api_db_staging_password
+      config:
+        API_BASE_URL: "https://staging-api.mytomorrows.com"
+        LOG_LEVEL: "INFO"
+        SERVICE_NAME: "api-service"
+        MAX_CONNECTIONS: "20"
+        ENVIRONMENT: "staging"
+        DEBUG: "false"
+    ingress:
+      enabled: true
+      host: "staging-api.mytomorrows.com"
+      path: "/api"
+      annotations:
+        kubernetes.io/ingress.class: nginx
+        nginx.ingress.kubernetes.io/rewrite-target: /
+        nginx.ingress.kubernetes.io/ssl-redirect: "true"
+        nginx.ingress.kubernetes.io/rate-limit: "100"
+        nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+        nginx.ingress.kubernetes.io/ssl-protocols: "TLSv1.2 TLSv1.3"
+        cert-manager.io/cluster-issuer: letsencrypt-staging
+      tls: true
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 200m
+        memory: 256Mi
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 6
+      targetCPUUtilizationPercentage: 70
+
+  # Application 2: Admin Dashboard
+  - name: "my-tomorrows-admin"
+    enabled: true
+    replicaCount: 2
+    image:
+      repository: "nginx"
+      tag: "alpine"
+      pullPolicy: "IfNotPresent"
+    service:
+      type: LoadBalancer
+      port: 80
+      targetPort: 80
+    app:
+      containerPort: 80
+      secrets:
+        ADMIN_SECRET: "YWRtaW5fc3RhZ2luZ19zZWNyZXQ="  # admin_staging_secret
+      config:
+        API_ENDPOINT: "http://my-tomorrows-api-service.my-app-staging.svc.cluster.local"
+        ENVIRONMENT: "staging"
+        SERVICE_NAME: "admin-dashboard"
+        DEBUG: "false"
+    ingress:
+      enabled: true
+      host: "staging-admin.mytomorrows.com"
+      path: "/"
+      annotations:
+        kubernetes.io/ingress.class: nginx
+        nginx.ingress.kubernetes.io/rewrite-target: /
+        nginx.ingress.kubernetes.io/ssl-redirect: "true"
+        nginx.ingress.kubernetes.io/rate-limit: "100"
+        nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+        cert-manager.io/cluster-issuer: letsencrypt-staging
+      tls: true
+    resources:
+      limits:
+        cpu: 200m
+        memory: 256Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 5
+      targetCPUUtilizationPercentage: 70
+
+  # Application 3: Background Worker
+  - name: "my-tomorrows-worker"
+    enabled: true
+    replicaCount: 2
+    image:
+      repository: "cloudandparth/my-demo-worker"
+      tag: "1.0"
+      pullPolicy: "Always"
+    service:
+      type: ClusterIP  # Internal service only
+      port: 3000
+      targetPort: 3000
+    app:
+      containerPort: 3000
+      secrets:
+        WORKER_SECRET: "d29ya2VyX3NlY3JldF9zdGFnaW5n"  # worker_secret_staging
+      config:
+        QUEUE_URL: "redis://redis.my-app-staging.svc.cluster.local:6379"
+        WORKER_THREADS: "4"
+        LOG_LEVEL: "INFO"
+        SERVICE_NAME: "background-worker"
+        ENVIRONMENT: "staging"
+        DEBUG: "false"
+    ingress:
+      enabled: false  # Worker doesn't need external access
+    resources:
+      limits:
+        cpu: 300m
+        memory: 384Mi
+      requests:
+        cpu: 150m
+        memory: 192Mi
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 4
+      targetCPUUtilizationPercentage: 75

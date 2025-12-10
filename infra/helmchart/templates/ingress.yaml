@@ -1,0 +1,34 @@
+{{- range $app := .Values.applications }}
+{{- if and $app.enabled $app.ingress.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $app.name }}-ingress
+  namespace: {{ $.Values.namespace.name }}
+  labels:
+    app.kubernetes.io/name: {{ $app.name }}
+    app.kubernetes.io/instance: {{ $.Release.Name }}
+    app.kubernetes.io/version: {{ $.Chart.AppVersion | quote }}
+    app.kubernetes.io/managed-by: {{ $.Release.Service }}
+  {{- with ($app.ingress.annotations | default $.Values.defaultApp.ingress.annotations) }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with ($app.ingress.className | default $.Values.defaultApp.ingress.className) }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  rules:
+    - host: {{ $app.ingress.host | default $.Values.defaultApp.ingress.host | quote }}
+      http:
+        paths:
+          - path: {{ $app.ingress.path | default $.Values.defaultApp.ingress.path }}
+            pathType: {{ $app.ingress.pathType | default $.Values.defaultApp.ingress.pathType }}
+            backend:
+              service:
+                name: {{ $app.name }}-service
+                port:
+                  number: {{ $app.service.port | default $.Values.defaultApp.service.port }}
+{{- end }}
+{{- end }}

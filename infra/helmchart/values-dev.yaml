@@ -1,0 +1,213 @@
+# Multi-Application Development Environment Values
+# This file shows how to deploy multiple applications using the umbrella chart
+
+# ===========================
+# GLOBAL CONFIGURATION
+# ===========================
+global:
+  environment: "development"
+  registry: "docker.io"
+  imageTag: "latest"
+  namespace: "my-app-dev"
+
+# Namespace configuration for dev
+namespace:
+  create: false  # Namespace created by Terraform
+  name: "my-app-dev"
+
+# Shared infrastructure configuration
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  automount: false
+  annotations: {}
+  name: ""
+
+# RBAC configuration
+rbac:
+  create: true
+  rules:
+    - apiGroups: [""]
+      resources: ["pods"]
+      verbs: ["get", "list"]
+
+# Network Policy configuration (more permissive for dev)
+networkPolicy:
+  enabled: true
+  policyTypes:
+    - Ingress
+  ingress:
+    - from: []
+      ports:
+        - protocol: TCP
+          port: 5000
+        - protocol: TCP
+          port: 80
+
+# Pod annotations and labels
+podAnnotations: {}
+podLabels: {}
+
+# Security contexts
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  fsGroup: 10001
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  capabilities:
+    drop:
+    - ALL
+
+# Health probes (optimized for dev)
+defaultProbes:
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: http
+    initialDelaySeconds: 10
+    periodSeconds: 10
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: http
+    initialDelaySeconds: 5
+    periodSeconds: 5
+  startupProbe:
+    httpGet:
+      path: /health
+      port: http
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    failureThreshold: 10
+
+# Pod Security Standards for development
+podSecurityStandards:
+  enforce: "baseline"
+  audit: "restricted"
+  warn: "restricted"
+
+# Pod Disruption Budget
+podDisruptionBudget:
+  enabled: false
+
+# Additional volumes and mounts
+volumes: []
+volumeMounts: []
+nodeSelector: {}
+tolerances: []
+affinity: {}
+
+# ===========================
+# DEFAULT APP CONFIGURATION
+# ===========================
+# Default application template (shared defaults)
+defaultApp:
+  replicaCount: 1
+  image:
+    pullPolicy: "IfNotPresent"
+    tag: "latest"
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 80
+  app:
+    containerPort: 80
+    secrets: {}
+    config: {}
+  ingress:
+    enabled: false
+    className: "nginx"
+    annotations:
+      nginx.ingress.kubernetes.io/rewrite-target: /
+    host: "my-tomorrows.local"
+    path: "/"
+    pathType: "Prefix"
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+# ===========================
+# INDIVIDUAL APPLICATIONS
+# ===========================
+applications:
+  # Application 1: Main API Service
+  - name: "my-tomorrows-api"
+    enabled: true
+    replicaCount: 1
+    image:
+      repository: "cloudandparth/my-demo-app"
+      tag: "1.0"
+      pullPolicy: "Always"
+    service:
+      type: NodePort
+      port: 80
+      targetPort: 5000
+      nodePort: 30080
+    app:
+      containerPort: 5000
+      secrets:
+        SECRET_KEY: "YXBpX3NlY3JldF9rZXk="  # api_secret_key
+        DB_PASSWORD: "YXBpX2RiX3Bhc3N3b3Jk"  # api_db_password
+      config:
+        API_BASE_URL: "https://dev-api.example.com"
+        LOG_LEVEL: "DEBUG"
+        SERVICE_NAME: "api-service"
+        MAX_CONNECTIONS: "10"
+        ENVIRONMENT: "development"
+        DEBUG: "true"
+    ingress:
+      enabled: false  # Use NodePort for dev
+    resources:
+      limits:
+        cpu: 200m
+        memory: 256Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+
+  # Application 2: Background Worker (disabled by default in dev)
+  - name: "my-tomorrows-worker"
+    enabled: false
+    replicaCount: 1
+    image:
+      repository: "cloudandparth/my-demo-app"
+      tag: "1.0"
+      pullPolicy: "IfNotPresent"
+    service:
+      type: ClusterIP
+      port: 80
+      targetPort: 5000
+    app:
+      containerPort: 5000
+      secrets:
+        WORKER_SECRET: "d29ya2VyX3NlY3JldA=="  # worker_secret
+        QUEUE_PASSWORD: "cXVldWVfcGFzc3dvcmQ="  # queue_password
+      config:
+        QUEUE_URL: "redis://redis.my-app-dev.svc.cluster.local:6379"
+        LOG_LEVEL: "DEBUG"
+        SERVICE_NAME: "background-worker"
+        ENVIRONMENT: "development"
+        DEBUG: "true"
+    ingress:
+      enabled: false
+    resources:
+      limits:
+        cpu: 150m
+        memory: 192Mi
+      requests:
+        cpu: 75m
+        memory: 96Mi
