@@ -104,7 +104,7 @@ podDisruptionBudget:
 volumes: []
 volumeMounts: []
 nodeSelector: {}
-tolerances: []
+tolerations: []
 affinity: {}
 
 # ===========================

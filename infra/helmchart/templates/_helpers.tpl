@@ -42,7 +42,6 @@ app.kubernetes.io/environment: {{ .Values.global.environment | quote }}
 {{- end }}
 
 {{/*
-{{/*
 Selector labels
 */}}
 {{- define "app-umbrella-chart.selectorLabels" -}}

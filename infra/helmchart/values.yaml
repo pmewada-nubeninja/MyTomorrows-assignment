@@ -117,9 +117,6 @@ applications:
 
 # Default application configuration template (used as fallback)
 defaultApp:
-
-# Default application configuration template (used as fallback)
-defaultApp:
   replicaCount: 1
   image:
     repository: "nginx"
