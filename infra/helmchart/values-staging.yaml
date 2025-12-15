@@ -125,7 +125,7 @@ podSecurityStandards:
 volumes: []
 volumeMounts: []
 nodeSelector: {}
-tolerances: []
+tolerations: []
 affinity: {}
 
 # ===========================

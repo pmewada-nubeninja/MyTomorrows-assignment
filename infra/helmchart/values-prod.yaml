@@ -149,9 +149,9 @@ backup:
 
 # Additional volumes and mounts
 volumes: []
-volumesMounts: []
+volumeMounts: []
 nodeSelector: {}
-tolerances: []
+tolerations: []
 affinity: {}
 
 # ===========================
